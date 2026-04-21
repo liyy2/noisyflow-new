@@ -16,13 +16,22 @@ This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlo
 ## Method Overview
 
 <p align="center">
-  <a href="assets/Noisyflow-Mar24th-schematics-updated.pdf"><strong>Open the main NoisyFlow schematic (PDF)</strong></a>
+  <a href="assets/Noisyflow-Mar24th-schematics-updated.pdf">
+    <img src="assets/noisyflow-main-schematic-600dpi.png" width="900" alt="NoisyFlow pipeline schematic for private federated generation, transport, synthesis, and downstream evaluation." />
+  </a>
 </p>
 <p align="center">
-  <em>Main pipeline schematic for private federated generation, transport, synthesis, and downstream evaluation.</em>
+  <em>Main NoisyFlow schematic. Click the image to open the full-resolution PDF.</em>
 </p>
 
-An additional schematic is available at [`assets/schematics.pdf`](assets/schematics.pdf).
+<p align="center">
+  <a href="assets/schematics.pdf">
+    <img src="assets/noisyflow-schematic-600dpi.png" width="760" alt="Additional NoisyFlow schematic for the federated synthetic data generation workflow." />
+  </a>
+</p>
+<p align="center">
+  <em>Additional schematic. Click the image to open the full-resolution PDF.</em>
+</p>
 
 ## Repository Contents
 

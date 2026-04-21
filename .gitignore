@@ -64,6 +64,8 @@
 # README assets.
 !assets/Noisyflow-Mar24th-schematics-updated.pdf
 !assets/schematics.pdf
+!assets/noisyflow-main-schematic-600dpi.png
+!assets/noisyflow-schematic-600dpi.png
 
 # Requirement files in a requirements/ directory, if present.
 !requirements/*.txt

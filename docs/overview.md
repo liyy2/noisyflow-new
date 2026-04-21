@@ -1,7 +1,7 @@
 # NoisyFlow Overview
 
 ## Pipeline summary
-NoisyFlow is a three-stage pipeline for federated synthetic data generation with optional differential privacy (DP). Each client trains a flow-matching generator, learns an optimal transport (OT) map into a target domain, and then a server synthesizes labeled samples for downstream classification.
+NoisyFlow is a three-stage pipeline for federated synthetic data generation with optional differential privacy (DP). Each client trains a flow-matching generator, learns a target-domain transport map, and then a server synthesizes labeled samples for downstream classification.
 
 ## Stage 1: Client flow matching
 - Model: `VelocityField` in `noisyflow/stage1/networks.py`.
@@ -10,13 +10,13 @@ NoisyFlow is a three-stage pipeline for federated synthetic data generation with
 - Optional label prior with noisy counts via `stage1.label_prior`.
 - Output per client: trained flow model and (optional) label prior.
 
-## Stage 2: Client OT map
-- Model options: ICNN (`noisyflow/stage2/networks.py`) or CellOT ICNN pair.
+## Stage 2: Client transport map
+- Model options: ICNN-based optimal transport (`noisyflow/stage2/networks.py`), CellOT ICNN pairs, and flow-matching transport variants.
 - Options in `stage2.option`:
   - A: real client data to target reference data.
   - B: synthetic data only (post-processing of stage 1).
   - C: mixed real + synthetic (concatenated batches).
-- ICNN training lives in `noisyflow/stage2/training.py`.
+- ICNN and flow-matching transport training live in `noisyflow/stage2/training.py`.
 - CellOT training is enabled by `stage2.cellot.enabled: true` and supports option A.
 - Stage 2 DP (from `stage2.dp`) requires CellOT with option A in the CLI entrypoint.
 
