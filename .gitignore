@@ -15,6 +15,7 @@
 !scripts/**/
 !docs/
 !docs/**/
+!assets/
 !requirements/
 !requirements/**/
 !tex/
@@ -59,6 +60,10 @@
 !docs/**/*.rst
 !docs/*.txt
 !docs/**/*.txt
+
+# README assets.
+!assets/Noisyflow-Mar24th-schematics-updated.pdf
+!assets/schematics.pdf
 
 # Requirement files in a requirements/ directory, if present.
 !requirements/*.txt
