@@ -1,0 +1,104 @@
+# Publication config for plots/paper.tex, Mixture of Gaussians DP/SW2 claim.
+# Verified on GPU in results/publication_repro/benchmark_mog_ref100_dp.json:
+# ref-only acc=0.602, raw SW2=0.6020, transported SW2=0.1033,
+# epsilon_total=19.54 at delta=1e-5.
+# Note: this DP run does not reproduce the non-private table accuracy;
+# use benchmark_mog_ref100_table_nodp.yaml for Table tab:mog-ref100.
+# Run:
+#   conda run -n edm python run.py --config configs/publication/benchmark_mog_ref100_dp.yaml
+seed: 0
+device: cuda
+
+data:
+  type: federated_mixture_gaussians
+  params:
+    K: 3
+    n_per_client: 1500
+    n_target_ref: 2000
+    n_target_test: 1000
+    d: 50
+    num_classes: 6
+    component_scale: 0.45
+    component_cov: 1.15
+    scale_logstd: 0.2
+    shift_scale: 0.5
+    seed: 0
+
+loaders:
+  batch_size: 256
+  target_batch_size: 256
+  test_batch_size: 512
+  synth_batch_size: 512
+  # drop_last=false gives 6 optimizer steps/client/epoch for n=1500, matching the
+  # DP accounting used for the epsilon ~=20.03 paper run.
+  drop_last: false
+
+stage1:
+  model: flow
+  epochs: 20
+  lr: 0.001
+  optimizer: adam
+  weight_decay: 0.0
+  hidden: [128, 128]
+  time_emb_dim: 32
+  label_emb_dim: 32
+  label_prior:
+    enabled: true
+    mechanism: gaussian
+    sigma: 1.0
+  dp:
+    enabled: true
+    max_grad_norm: 1.0
+    # Opacus 1.5.4 PRV accountant: n=1500, batch=256, 20 epochs -> epsilon ~=20.03.
+    noise_multiplier: 0.81024
+    delta: 1.0e-5
+    grad_sample_mode: functorch
+
+stage2:
+  # Option B trains transport on DP synthetic source samples and public target
+  # samples, so Stage II is post-processing and has no additional DP-SGD cost.
+  option: B
+  pair_by_label: true
+  pair_by_ot: true
+  pair_by_ot_method: hungarian
+  public_synth_steps: 1
+  public_pretrain_epochs: 0
+  epochs: 60
+  lr: 0.001
+  optimizer: adam
+  weight_decay: 0.0
+  flow_steps: 50
+  dp:
+    enabled: false
+    max_grad_norm: 1.0
+    noise_multiplier: 1.0
+    delta: 1.0e-5
+    grad_sample_mode: functorch
+  cellot:
+    enabled: false
+  rectified_flow:
+    enabled: true
+    hidden: [256, 256]
+    time_emb_dim: 64
+    act: silu
+    transport_steps: 50
+
+stage3:
+  classifier: rf
+  epochs: 30
+  lr: 0.001
+  hidden: [128, 128]
+  flow_steps: 50
+  # Produces K * M_per_client = 15000 transported synthetic samples.
+  M_per_client: 5000
+  # Ref-only baseline uses 100 labeled target samples; Stage II still sees the
+  # full target_ref as public target data.
+  ref_train_size: 100
+  combined_synth_train_size: null
+
+privacy_curve:
+  enabled: false
+  stage: stage1
+  noise_multipliers: [0.5, 1.0, 2.0, 4.0]
+  output_path: plots/privacy_utility_mog_ref100_dp.pdf
+  metric: acc_ref_plus_synth

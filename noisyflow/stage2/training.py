@@ -84,6 +84,7 @@ def rectified_flow_ot_loss(
     v: RectifiedFlowOT,
     source: torch.Tensor,
     target: torch.Tensor,
+    normalize_by_dim: bool = False,
 ) -> torch.Tensor:
     """
     Rectified-flow objective between source and target batches.
@@ -96,7 +97,10 @@ def rectified_flow_ot_loss(
     x_t = (1.0 - t) * source + t * target
     v_star = target - source
     v_pred = v(x_t, t)
-    return ((v_pred - v_star) ** 2).sum(dim=1).mean()
+    sq = (v_pred - v_star) ** 2
+    if normalize_by_dim:
+        return sq.mean(dim=1).mean()
+    return sq.sum(dim=1).mean()
 
 
 def train_ot_stage2_rectified_flow(
@@ -106,9 +110,16 @@ def train_ot_stage2_rectified_flow(
     option: str = "A",
     pair_by_label: bool = False,
     pair_by_ot: bool = False,
+    pair_by_ot_method: str = "hungarian",
     synth_sampler: Optional[Callable[..., torch.Tensor]] = None,
     epochs: int = 10,
     lr: float = 1e-3,
+    optimizer: str = "adam",
+    weight_decay: float = 0.0,
+    ema_decay: Optional[float] = None,
+    loss_normalize_by_dim: bool = False,
+    public_synth_steps: int = 1,
+    public_pretrain_epochs: int = 0,
     dp: Optional[DPConfig] = None,
     device: str = "cpu",
 ) -> Dict[str, float]:
@@ -163,6 +174,14 @@ def train_ot_stage2_rectified_flow(
         perm_t = torch.from_numpy(perm).to(device=target.device, dtype=torch.long)
         return target.index_select(0, perm_t)
 
+    def _nn_match(source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        if source.shape != target.shape:
+            raise ValueError(f"OT matching requires same shapes, got {source.shape} vs {target.shape}")
+        with torch.no_grad():
+            dists = ((source[:, None, :] - target[None, :, :]) ** 2).sum(dim=2)
+            idx = torch.argmin(dists, dim=1)
+        return target.index_select(0, idx)
+
     def _match_target(
         source: torch.Tensor,
         target: torch.Tensor,
@@ -170,8 +189,11 @@ def train_ot_stage2_rectified_flow(
     ) -> torch.Tensor:
         if not pair_by_ot:
             return target
+        method = str(pair_by_ot_method).strip().lower()
+        if method not in {"hungarian", "nn"}:
+            raise ValueError("pair_by_ot_method must be 'hungarian' or 'nn'")
         if labels is None:
-            return _hungarian_match(source, target)
+            return _hungarian_match(source, target) if method == "hungarian" else _nn_match(source, target)
         labels = labels.to(source.device).long().view(-1)
         out = target.clone()
         for c in labels.unique().tolist():
@@ -180,7 +202,9 @@ def train_ot_stage2_rectified_flow(
             idx = mask.nonzero(as_tuple=False).view(-1)
             if int(idx.numel()) <= 1:
                 continue
-            out[idx] = _hungarian_match(source[idx], target[idx])
+            out[idx] = (
+                _hungarian_match(source[idx], target[idx]) if method == "hungarian" else _nn_match(source[idx], target[idx])
+            )
         return out
 
     target_pool_by_label: Optional[Dict[int, torch.Tensor]] = None
@@ -192,10 +216,15 @@ def train_ot_stage2_rectified_flow(
                 print("[Stage II/RectifiedFlow] WARNING: target labels empty; disabling pair_by_label.")
                 pair_by_label = False
             else:
-                num_classes = int(ls_all.max().item() + 1)
-                target_pool_by_label = {
-                    c: ys_all[ls_all == c] for c in range(num_classes)
-                }
+                max_label = int(ls_all.max().item())
+                if option in {"A", "C"} and source_loader is not None:
+                    src_ds = getattr(source_loader, "dataset", None)
+                    if isinstance(src_ds, TensorDataset) and len(src_ds.tensors) >= 2:
+                        src_labels = src_ds.tensors[1].to(device).long().view(-1)
+                        if src_labels.numel() > 0:
+                            max_label = max(max_label, int(src_labels.max().item()))
+                num_classes = int(max_label + 1)
+                target_pool_by_label = {c: ys_all[ls_all == c] for c in range(num_classes)}
                 empty = [c for c, pool in target_pool_by_label.items() if int(pool.shape[0]) == 0]
                 if empty:
                     print(
@@ -229,7 +258,18 @@ def train_ot_stage2_rectified_flow(
 
     v.to(device)
     v.train()
-    opt = torch.optim.Adam(v.parameters(), lr=lr)
+    optimizer = str(optimizer).lower()
+    weight_decay = float(weight_decay)
+    if weight_decay < 0.0:
+        raise ValueError("weight_decay must be >= 0")
+    if optimizer == "adam":
+        opt = torch.optim.Adam(v.parameters(), lr=lr, weight_decay=weight_decay)
+    elif optimizer == "adamw":
+        opt = torch.optim.AdamW(v.parameters(), lr=lr, weight_decay=weight_decay)
+    elif optimizer == "sgd":
+        opt = torch.optim.SGD(v.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay)
+    else:
+        raise ValueError("optimizer must be one of {'adam','adamw','sgd'}")
 
     privacy_engine = None
     if dp is not None and dp.enabled and option in {"A", "C"}:
@@ -243,14 +283,40 @@ def train_ot_stage2_rectified_flow(
             privacy_engine = PrivacyEngine(secure_mode=getattr(dp, "secure_mode", False))
         except TypeError:
             privacy_engine = PrivacyEngine()
-        v, opt, source_loader = _make_private_with_mode(
-            privacy_engine,
-            module=v,
-            optimizer=opt,
-            data_loader=source_loader,
-            dp=dp,
-            grad_sample_mode=getattr(dp, "grad_sample_mode", None),
-        )
+        target_epsilon = getattr(dp, "target_epsilon", None)
+        if target_epsilon is not None:
+            if not hasattr(privacy_engine, "make_private_with_epsilon"):
+                raise RuntimeError(
+                    "DPConfig.target_epsilon requested but this Opacus version does not support "
+                    "PrivacyEngine.make_private_with_epsilon. Upgrade opacus or set dp.noise_multiplier."
+                )
+            grad_sample_mode = getattr(dp, "grad_sample_mode", None)
+            kwargs = {
+                "module": v,
+                "optimizer": opt,
+                "data_loader": source_loader,
+                "target_epsilon": float(target_epsilon),
+                "target_delta": float(dp.delta),
+                "epochs": int(epochs),
+                "max_grad_norm": float(dp.max_grad_norm),
+            }
+            if grad_sample_mode is not None:
+                kwargs["grad_sample_mode"] = grad_sample_mode
+            try:
+                v, opt, source_loader = privacy_engine.make_private_with_epsilon(**kwargs)
+            except (TypeError, ValueError):
+                # Older/newer Opacus versions may not accept (or may reject) grad_sample_mode here.
+                kwargs.pop("grad_sample_mode", None)
+                v, opt, source_loader = privacy_engine.make_private_with_epsilon(**kwargs)
+        else:
+            v, opt, source_loader = _make_private_with_mode(
+                privacy_engine,
+                module=v,
+                optimizer=opt,
+                data_loader=source_loader,
+                dp=dp,
+                grad_sample_mode=getattr(dp, "grad_sample_mode", None),
+            )
         if pair_by_ot:
             print(
                 "[Stage II/RectifiedFlow] WARNING: pair_by_ot is ignored when using DP-SGD (stage2.option in {'A','C'}) because OT matching couples samples within a batch."
@@ -259,89 +325,368 @@ def train_ot_stage2_rectified_flow(
 
     target_iter = cycle(target_loader)
 
-    last_loss = float("nan")
-    for ep in range(1, epochs + 1):
-        if option == "A":
-            assert source_loader is not None
-            for xb in source_loader:
-                xb, x_labels = _as_x_and_label(xb)
-                xb = xb.to(device).float()
-                if pair_by_label and x_labels is not None and target_pool_by_label is not None:
-                    x_labels = x_labels.to(device).long().view(-1)
-                    yb = _sample_target_matched(x_labels)
+    class _EMA:
+        def __init__(self, params: Tuple[torch.nn.Parameter, ...], decay: float) -> None:
+            self.decay = float(decay)
+            if not (0.0 < self.decay < 1.0):
+                raise ValueError("ema_decay must be in (0, 1)")
+            self.params = tuple(p for p in params if p.requires_grad)
+            self.shadow = [p.detach().clone() for p in self.params]
+
+        @torch.no_grad()
+        def update(self) -> None:
+            for shadow, param in zip(self.shadow, self.params, strict=True):
+                shadow.mul_(self.decay).add_(param.detach(), alpha=1.0 - self.decay)
+
+        @torch.no_grad()
+        def apply(self) -> None:
+            for shadow, param in zip(self.shadow, self.params, strict=True):
+                param.data.copy_(shadow)
+
+    ema: Optional[_EMA] = None
+    if ema_decay is not None:
+        ema = _EMA(tuple(v.parameters()), decay=float(ema_decay))
+
+    if public_pretrain_epochs >= 0:
+        last_loss = float("nan")
+        if public_pretrain_epochs > 0 and option == "C" and synth_sampler is not None:
+            if privacy_engine is not None:
+                if not hasattr(opt, "original_optimizer") or not hasattr(v, "disable_hooks"):
+                    print(
+                        "[Stage II/RectifiedFlow-C] WARNING: public_pretrain_epochs requested but Opacus wrappers missing; skipping pretraining."
+                    )
                 else:
-                    yb = _sample_target(target_iter, xb.shape[0]).to(device).float()
-                yb = _match_target(xb, yb, labels=x_labels if pair_by_label else None)
+                    v.train()
+                    for ep in range(1, public_pretrain_epochs + 1):
+                        for yb_batch in target_loader:
+                            yb, y_labels = _as_x_and_label(yb_batch)
+                            yb = yb.to(device).float()
+                            if y_labels is not None:
+                                y_labels = y_labels.to(device).long().view(-1)
+                            if pair_by_label and y_labels is not None:
+                                try:
+                                    xb_syn = synth_sampler(yb.shape[0], labels=y_labels).to(device).float()  # type: ignore[misc]
+                                except TypeError:
+                                    xb_syn = synth_sampler(yb.shape[0]).to(device).float()  # type: ignore[misc]
+                            else:
+                                xb_syn = synth_sampler(yb.shape[0]).to(device).float()  # type: ignore[misc]
+                            try:
+                                v.disable_hooks()  # type: ignore[attr-defined]
+                                opt.original_optimizer.zero_grad(set_to_none=True)  # type: ignore[attr-defined]
+                                loss_syn = rectified_flow_ot_loss(
+                                    v,
+                                    xb_syn,
+                                    yb,
+                                    normalize_by_dim=bool(loss_normalize_by_dim),
+                                )
+                                loss_syn.backward()
+                                opt.original_optimizer.step()  # type: ignore[attr-defined]
+                                last_loss = float(loss_syn.detach().cpu().item())
+                            finally:
+                                v.enable_hooks()  # type: ignore[attr-defined]
+                            if ema is not None:
+                                ema.update()
+                        if ep % max(1, public_pretrain_epochs // 5) == 0:
+                            print(
+                                f"[Stage II/RectifiedFlow-C] public pretrain {ep:04d}/{public_pretrain_epochs}  loss={last_loss:.4f}"
+                            )
+            else:
+                v.train()
+                for ep in range(1, public_pretrain_epochs + 1):
+                    for yb_batch in target_loader:
+                        yb, y_labels = _as_x_and_label(yb_batch)
+                        yb = yb.to(device).float()
+                        if y_labels is not None:
+                            y_labels = y_labels.to(device).long().view(-1)
+                        if pair_by_label and y_labels is not None:
+                            try:
+                                xb_syn = synth_sampler(yb.shape[0], labels=y_labels).to(device).float()  # type: ignore[misc]
+                            except TypeError:
+                                xb_syn = synth_sampler(yb.shape[0]).to(device).float()  # type: ignore[misc]
+                        else:
+                            xb_syn = synth_sampler(yb.shape[0]).to(device).float()  # type: ignore[misc]
+                        loss_syn = rectified_flow_ot_loss(
+                            v,
+                            xb_syn,
+                            yb,
+                            normalize_by_dim=bool(loss_normalize_by_dim),
+                        )
+                        opt.zero_grad(set_to_none=True)
+                        loss_syn.backward()
+                        opt.step()
+                        if ema is not None:
+                            ema.update()
+                        last_loss = float(loss_syn.detach().cpu().item())
+                    if ep % max(1, public_pretrain_epochs // 5) == 0:
+                        print(
+                            f"[Stage II/RectifiedFlow-C] public pretrain {ep:04d}/{public_pretrain_epochs}  loss={last_loss:.4f}"
+                        )
 
-                loss = rectified_flow_ot_loss(v, xb, yb)
-                opt.zero_grad(set_to_none=True)
-                loss.backward()
-                opt.step()
-                last_loss = float(loss.detach().cpu().item())
-        elif option == "C":
-            assert source_loader is not None
-            assert synth_sampler is not None
-            for xb in source_loader:
-                xb, x_labels = _as_x_and_label(xb)
-                xb = xb.to(device).float()
-                if x_labels is not None:
-                    x_labels = x_labels.to(device).long().view(-1)
-
-                if pair_by_label and x_labels is not None and target_pool_by_label is not None:
-                    yb_real = _sample_target_matched(x_labels)
-                    yb_syn = _sample_target_matched(x_labels)
+        last_loss = float("nan")
+        for ep in range(1, epochs + 1):
+            if option == "A":
+                assert source_loader is not None
+                max_physical_batch_size = getattr(dp, "max_physical_batch_size", None) if dp is not None else None
+                if privacy_engine is not None and max_physical_batch_size is not None:
                     try:
-                        xb_syn = synth_sampler(xb.shape[0], labels=x_labels).to(device).float()  # type: ignore[misc]
-                    except TypeError:
-                        xb_syn = synth_sampler(xb.shape[0]).to(device).float()  # type: ignore[misc]
-                    labels_syn = x_labels
-                else:
-                    yb_real = _sample_target(target_iter, xb.shape[0]).to(device).float()
-                    yb_syn = _sample_target(target_iter, xb.shape[0]).to(device).float()
-                    xb_syn = synth_sampler(xb.shape[0]).to(device).float()  # type: ignore[misc]
-                    labels_syn = None
+                        from opacus.utils.batch_memory_manager import BatchMemoryManager
+                    except Exception as exc:  # pragma: no cover
+                        raise RuntimeError(
+                            "dp.max_physical_batch_size requires opacus.utils.batch_memory_manager (upgrade opacus)."
+                        ) from exc
+                    with BatchMemoryManager(
+                        data_loader=source_loader,
+                        max_physical_batch_size=int(max_physical_batch_size),
+                        optimizer=opt,
+                    ) as memory_safe_loader:
+                        for xb in memory_safe_loader:
+                            xb, x_labels = _as_x_and_label(xb)
+                            xb = xb.to(device).float()
+                            if pair_by_label and x_labels is not None and target_pool_by_label is not None:
+                                x_labels = x_labels.to(device).long().view(-1)
+                                yb = _sample_target_matched(x_labels)
+                            else:
+                                yb = _sample_target(target_iter, xb.shape[0]).to(device).float()
+                            yb = _match_target(xb, yb, labels=x_labels if pair_by_label else None)
 
-                xb_cat = torch.cat([xb, xb_syn], dim=0)
-                yb_cat = torch.cat([yb_real, yb_syn], dim=0)
-                if pair_by_label and x_labels is not None:
-                    labels_cat = torch.cat([x_labels, labels_syn if labels_syn is not None else x_labels], dim=0)
+                            loss = rectified_flow_ot_loss(
+                                v,
+                                xb,
+                                yb,
+                                normalize_by_dim=bool(loss_normalize_by_dim),
+                            )
+                            opt.zero_grad(set_to_none=True)
+                            loss.backward()
+                            opt.step()
+                            if ema is not None:
+                                ema.update()
+                            last_loss = float(loss.detach().cpu().item())
                 else:
-                    labels_cat = None
-                yb_cat = _match_target(xb_cat, yb_cat, labels=labels_cat if pair_by_label else None)
+                    for xb in source_loader:
+                        xb, x_labels = _as_x_and_label(xb)
+                        xb = xb.to(device).float()
+                        if pair_by_label and x_labels is not None and target_pool_by_label is not None:
+                            x_labels = x_labels.to(device).long().view(-1)
+                            yb = _sample_target_matched(x_labels)
+                        else:
+                            yb = _sample_target(target_iter, xb.shape[0]).to(device).float()
+                        yb = _match_target(xb, yb, labels=x_labels if pair_by_label else None)
 
-                loss = rectified_flow_ot_loss(v, xb_cat, yb_cat)
-                opt.zero_grad(set_to_none=True)
-                loss.backward()
-                opt.step()
-                last_loss = float(loss.detach().cpu().item())
-        else:
-            for yb in target_loader:
-                yb, y_labels = _as_x_and_label(yb)
-                yb = yb.to(device).float()
-                if pair_by_label and y_labels is not None:
-                    y_labels = y_labels.to(device).long().view(-1)
+                        loss = rectified_flow_ot_loss(
+                            v,
+                            xb,
+                            yb,
+                            normalize_by_dim=bool(loss_normalize_by_dim),
+                        )
+                        opt.zero_grad(set_to_none=True)
+                        loss.backward()
+                        opt.step()
+                        if ema is not None:
+                            ema.update()
+                        last_loss = float(loss.detach().cpu().item())
+            elif option == "C":
+                assert source_loader is not None
+                assert synth_sampler is not None
+                max_physical_batch_size = getattr(dp, "max_physical_batch_size", None) if dp is not None else None
+                if privacy_engine is not None and max_physical_batch_size is not None:
                     try:
-                        xb = synth_sampler(yb.shape[0], labels=y_labels).to(device).float()  # type: ignore[misc]
-                    except TypeError:
+                        from opacus.utils.batch_memory_manager import BatchMemoryManager
+                    except Exception as exc:  # pragma: no cover
+                        raise RuntimeError(
+                            "dp.max_physical_batch_size requires opacus.utils.batch_memory_manager (upgrade opacus)."
+                        ) from exc
+                    with BatchMemoryManager(
+                        data_loader=source_loader,
+                        max_physical_batch_size=int(max_physical_batch_size),
+                        optimizer=opt,
+                    ) as memory_safe_loader:
+                        source_epoch_iter = memory_safe_loader
+                        for xb in source_epoch_iter:
+                            xb, x_labels = _as_x_and_label(xb)
+                            xb = xb.to(device).float()
+                            if x_labels is not None:
+                                x_labels = x_labels.to(device).long().view(-1)
+
+                            if pair_by_label and x_labels is not None and target_pool_by_label is not None:
+                                yb_real = _sample_target_matched(x_labels)
+                            else:
+                                yb_real = _sample_target(target_iter, xb.shape[0]).to(device).float()
+
+                            yb_real = _match_target(xb, yb_real, labels=x_labels if pair_by_label else None)
+                            loss_priv = rectified_flow_ot_loss(
+                                v,
+                                xb,
+                                yb_real,
+                                normalize_by_dim=bool(loss_normalize_by_dim),
+                            )
+                            opt.zero_grad(set_to_none=True)
+                            loss_priv.backward()
+                            opt.step()
+                            if ema is not None:
+                                ema.update()
+                            last_loss = float(loss_priv.detach().cpu().item())
+
+                            if not hasattr(opt, "original_optimizer") or not hasattr(v, "disable_hooks"):
+                                continue
+                            for _ in range(public_synth_steps):
+                                if pair_by_label and x_labels is not None and target_pool_by_label is not None:
+                                    yb_syn = _sample_target_matched(x_labels)
+                                    try:
+                                        xb_syn = synth_sampler(xb.shape[0], labels=x_labels).to(device).float()  # type: ignore[misc]
+                                    except TypeError:
+                                        xb_syn = synth_sampler(xb.shape[0]).to(device).float()  # type: ignore[misc]
+                                else:
+                                    yb_syn = _sample_target(target_iter, xb.shape[0]).to(device).float()
+                                    xb_syn = synth_sampler(xb.shape[0]).to(device).float()  # type: ignore[misc]
+
+                                yb_syn = _match_target(xb_syn, yb_syn, labels=x_labels if pair_by_label else None)
+                                try:
+                                    v.disable_hooks()  # type: ignore[attr-defined]
+                                    opt.original_optimizer.zero_grad(set_to_none=True)  # type: ignore[attr-defined]
+                                    loss_syn = rectified_flow_ot_loss(
+                                        v,
+                                        xb_syn,
+                                        yb_syn,
+                                        normalize_by_dim=bool(loss_normalize_by_dim),
+                                    )
+                                    loss_syn.backward()
+                                    opt.original_optimizer.step()  # type: ignore[attr-defined]
+                                    if ema is not None:
+                                        ema.update()
+                                finally:
+                                    v.enable_hooks()  # type: ignore[attr-defined]
+                else:
+                    for xb in source_loader:
+                        xb, x_labels = _as_x_and_label(xb)
+                        xb = xb.to(device).float()
+                        if x_labels is not None:
+                            x_labels = x_labels.to(device).long().view(-1)
+
+                        if pair_by_label and x_labels is not None and target_pool_by_label is not None:
+                            yb_real = _sample_target_matched(x_labels)
+                        else:
+                            yb_real = _sample_target(target_iter, xb.shape[0]).to(device).float()
+
+                        if privacy_engine is None:
+                            if pair_by_label and x_labels is not None and target_pool_by_label is not None:
+                                yb_syn = _sample_target_matched(x_labels)
+                                try:
+                                    xb_syn = synth_sampler(xb.shape[0], labels=x_labels).to(device).float()  # type: ignore[misc]
+                                except TypeError:
+                                    xb_syn = synth_sampler(xb.shape[0]).to(device).float()  # type: ignore[misc]
+                            else:
+                                yb_syn = _sample_target(target_iter, xb.shape[0]).to(device).float()
+                                xb_syn = synth_sampler(xb.shape[0]).to(device).float()  # type: ignore[misc]
+                            xb_cat = torch.cat([xb, xb_syn], dim=0)
+                            yb_cat = torch.cat([yb_real, yb_syn], dim=0)
+                            labels_cat = None
+                            if pair_by_label and x_labels is not None:
+                                labels_cat = torch.cat([x_labels, x_labels], dim=0)
+                            yb_cat = _match_target(
+                                xb_cat,
+                                yb_cat,
+                                labels=labels_cat if pair_by_label else None,
+                            )
+                            loss = rectified_flow_ot_loss(
+                                v,
+                                xb_cat,
+                                yb_cat,
+                                normalize_by_dim=bool(loss_normalize_by_dim),
+                            )
+                            opt.zero_grad(set_to_none=True)
+                            loss.backward()
+                            opt.step()
+                            if ema is not None:
+                                ema.update()
+                            last_loss = float(loss.detach().cpu().item())
+                            continue
+
+                        yb_real = _match_target(xb, yb_real, labels=x_labels if pair_by_label else None)
+                        loss_priv = rectified_flow_ot_loss(
+                            v,
+                            xb,
+                            yb_real,
+                            normalize_by_dim=bool(loss_normalize_by_dim),
+                        )
+                        opt.zero_grad(set_to_none=True)
+                        loss_priv.backward()
+                        opt.step()
+                        if ema is not None:
+                            ema.update()
+                        last_loss = float(loss_priv.detach().cpu().item())
+
+                        if not hasattr(opt, "original_optimizer") or not hasattr(v, "disable_hooks"):
+                            continue
+                        for _ in range(public_synth_steps):
+                            if pair_by_label and x_labels is not None and target_pool_by_label is not None:
+                                yb_syn = _sample_target_matched(x_labels)
+                                try:
+                                    xb_syn = synth_sampler(xb.shape[0], labels=x_labels).to(device).float()  # type: ignore[misc]
+                                except TypeError:
+                                    xb_syn = synth_sampler(xb.shape[0]).to(device).float()  # type: ignore[misc]
+                            else:
+                                yb_syn = _sample_target(target_iter, xb.shape[0]).to(device).float()
+                                xb_syn = synth_sampler(xb.shape[0]).to(device).float()  # type: ignore[misc]
+
+                            yb_syn = _match_target(xb_syn, yb_syn, labels=x_labels if pair_by_label else None)
+                            try:
+                                v.disable_hooks()  # type: ignore[attr-defined]
+                                opt.original_optimizer.zero_grad(set_to_none=True)  # type: ignore[attr-defined]
+                                loss_syn = rectified_flow_ot_loss(
+                                    v,
+                                    xb_syn,
+                                    yb_syn,
+                                    normalize_by_dim=bool(loss_normalize_by_dim),
+                                )
+                                loss_syn.backward()
+                                opt.original_optimizer.step()  # type: ignore[attr-defined]
+                                if ema is not None:
+                                    ema.update()
+                            finally:
+                                v.enable_hooks()  # type: ignore[attr-defined]
+            else:
+                for yb in target_loader:
+                    yb, y_labels = _as_x_and_label(yb)
+                    yb = yb.to(device).float()
+                    if pair_by_label and y_labels is not None:
+                        y_labels = y_labels.to(device).long().view(-1)
+                        try:
+                            xb = synth_sampler(yb.shape[0], labels=y_labels).to(device).float()  # type: ignore[misc]
+                        except TypeError:
+                            xb = synth_sampler(yb.shape[0]).to(device).float()  # type: ignore[misc]
+                    else:
                         xb = synth_sampler(yb.shape[0]).to(device).float()  # type: ignore[misc]
-                else:
-                    xb = synth_sampler(yb.shape[0]).to(device).float()  # type: ignore[misc]
-                yb = _match_target(xb, yb, labels=y_labels if pair_by_label else None)
+                    yb = _match_target(xb, yb, labels=y_labels if pair_by_label else None)
 
-                loss = rectified_flow_ot_loss(v, xb, yb)
-                opt.zero_grad(set_to_none=True)
-                loss.backward()
-                opt.step()
-                last_loss = float(loss.detach().cpu().item())
+                    loss = rectified_flow_ot_loss(
+                        v,
+                        xb,
+                        yb,
+                        normalize_by_dim=bool(loss_normalize_by_dim),
+                    )
+                    opt.zero_grad(set_to_none=True)
+                    loss.backward()
+                    opt.step()
+                    if ema is not None:
+                        ema.update()
+                    last_loss = float(loss.detach().cpu().item())
 
         if ep % max(1, epochs // 5) == 0:
             print(f"[Stage II/RectifiedFlow-{option}] epoch {ep:04d}/{epochs}  loss={last_loss:.4f}")
+    else:
+        raise ValueError("public_pretrain_epochs must be >= 0")
+
+    if ema is not None:
+        ema.apply()
 
     out: Dict[str, float] = {"ot_loss": last_loss}
     if privacy_engine is not None and dp is not None:
         eps = float(privacy_engine.get_epsilon(delta=dp.delta))
         out["epsilon_ot"] = eps
         out["delta_ot"] = float(dp.delta)
+        nm = getattr(privacy_engine, "noise_multiplier", None)
+        if nm is not None:
+            out["noise_multiplier_ot"] = float(nm)
         print(f"[Stage II/RectifiedFlow-{option}] DP eps={eps:.3f}, delta={dp.delta:g}")
     return out
 
@@ -691,3 +1036,6 @@ def train_ot_stage2_cellot(
         out["delta_ot"] = float(dp.delta)
         print(f"[Stage II/CellOT] DP eps={eps:.3f}, delta={dp.delta:g}")
     return out
+    public_synth_steps = int(public_synth_steps)
+    if public_synth_steps < 0:
+        raise ValueError("public_synth_steps must be >= 0")

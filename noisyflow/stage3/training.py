@@ -7,10 +7,33 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from noisyflow.stage1.networks import VelocityField
-from noisyflow.stage1.training import sample_flow_euler
+from noisyflow.stage1.networks import ConditionalVAE, VelocityField
+from noisyflow.stage1.training import sample_flow_euler, sample_vae
 from noisyflow.stage2.networks import ICNN
 from noisyflow.stage3.networks import Classifier
+
+
+def _macro_f1_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    y_true = np.asarray(y_true).reshape(-1)
+    y_pred = np.asarray(y_pred).reshape(-1)
+    if y_true.size == 0 or y_pred.size == 0:
+        return float("nan")
+    if y_true.shape != y_pred.shape:
+        raise ValueError(f"y_true and y_pred must have same shape, got {y_true.shape} vs {y_pred.shape}")
+
+    classes = np.unique(y_true)
+    if classes.size == 0:
+        return float("nan")
+    f1s: List[float] = []
+    for c in classes.tolist():
+        tp = float(np.sum((y_pred == c) & (y_true == c)))
+        fp = float(np.sum((y_pred == c) & (y_true != c)))
+        fn = float(np.sum((y_pred != c) & (y_true == c)))
+        prec = tp / (tp + fp) if (tp + fp) > 0.0 else 0.0
+        rec = tp / (tp + fn) if (tp + fn) > 0.0 else 0.0
+        f1 = (2.0 * prec * rec / (prec + rec)) if (prec + rec) > 0.0 else 0.0
+        f1s.append(float(f1))
+    return float(np.mean(np.asarray(f1s, dtype=np.float64)))
 
 
 @torch.no_grad()
@@ -34,7 +57,8 @@ def server_synthesize_with_raw(
     Server-side synthesis in Eq. (server-synth).
 
     Each element in clients is a dict containing:
-      - "flow": VelocityField (DP-trained)
+      - "stage1_model": Stage I generator (or legacy "flow")
+      - "stage1_model_type": "flow" or "vae" (optional; defaults to "flow")
       - "ot":   ICNN or CellOTICNN (DP-trained or post-processed)
       - optional "prior": tensor (C,)
     """
@@ -42,16 +66,33 @@ def server_synthesize_with_raw(
     ys: List[torch.Tensor] = []
     ls: List[torch.Tensor] = []
     for idx, c in enumerate(clients):
-        flow: VelocityField = c["flow"].to(device).eval()
+        stage1_model = c.get("stage1_model", c.get("flow"))
+        if stage1_model is None:
+            raise KeyError("Each client must include 'stage1_model' or legacy 'flow'.")
+        stage1_model_type = str(c.get("stage1_model_type", "flow")).strip().lower()
+        stage1_model = stage1_model.to(device).eval()
         ot: torch.nn.Module = c["ot"].to(device).eval()
         prior: Optional[torch.Tensor] = c.get("prior", None)
+        cond_sampler = c.get("cond_sampler", None)
         if prior is None:
             prior = torch.ones(num_classes, device=device) / float(num_classes)
         else:
             prior = prior.to(device)
 
         labels = sample_labels_from_prior(prior, M_per_client).to(device)
-        x_tilde = sample_flow_euler(flow, labels, n_steps=flow_steps)
+        cond = cond_sampler(M_per_client, device=device) if callable(cond_sampler) else None
+        if stage1_model_type == "flow":
+            flow = stage1_model
+            if not isinstance(flow, VelocityField):
+                raise TypeError("stage1_model_type='flow' requires a VelocityField model")
+            x_tilde = sample_flow_euler(flow, labels, n_steps=flow_steps, cond=cond)
+        elif stage1_model_type == "vae":
+            vae = stage1_model
+            if not isinstance(vae, ConditionalVAE):
+                raise TypeError("stage1_model_type='vae' requires a ConditionalVAE model")
+            x_tilde = sample_vae(vae, labels, cond=cond)
+        else:
+            raise ValueError(f"Unknown stage1_model_type '{stage1_model_type}'")
         with torch.enable_grad():
             x_req = x_tilde.detach().requires_grad_(True)
             y_tilde = ot.transport(x_req)
@@ -111,8 +152,8 @@ def train_classifier(
         if ep % max(1, epochs // 5) == 0:
             msg = f"[Classifier] epoch {ep:04d}/{epochs} loss={last_loss:.4f}"
             if test_loader is not None:
-                acc = eval_classifier(clf, test_loader, device=device)["acc"]
-                msg += f"  test_acc={acc:.3f}"
+                metrics = eval_classifier(clf, test_loader, device=device)
+                msg += f"  test_acc={metrics['acc']:.3f}  test_f1={metrics['f1_macro']:.3f}"
                 clf.train()
             print(msg)
 
@@ -183,12 +224,14 @@ def train_random_forest_classifier(
         X_test, y_test = _collect_numpy_xy(test_loader)
         if X_test.size == 0:
             out["acc"] = float("nan")
+            out["f1_macro"] = float("nan")
         else:
             pred = clf.predict(X_test)
             out["acc"] = float((pred == y_test).mean())
+            out["f1_macro"] = _macro_f1_score(y_test, pred)
         out["test_n"] = float(len(y_test))
         print(
-            f"[{name}] train_n={int(out['train_n'])}  test_n={int(out['test_n'])}  n_estimators={n_estimators}  test_acc={out['acc']:.3f}"
+            f"[{name}] train_n={int(out['train_n'])}  test_n={int(out['test_n'])}  n_estimators={n_estimators}  test_acc={out['acc']:.3f}  test_f1={out['f1_macro']:.3f}"
         )
     return out
 
@@ -202,11 +245,21 @@ def eval_classifier(
     clf.eval()
     n = 0
     correct = 0
+    preds: List[np.ndarray] = []
+    labels: List[np.ndarray] = []
     for xb, yb in loader:
         xb = xb.to(device).float()
         yb = yb.to(device).long()
         pred = clf(xb).argmax(dim=1)
         correct += int((pred == yb).sum().item())
         n += int(yb.numel())
+        preds.append(pred.detach().cpu().numpy())
+        labels.append(yb.detach().cpu().numpy())
     acc = correct / max(1, n)
-    return {"acc": float(acc)}
+    if preds:
+        y_pred = np.concatenate(preds, axis=0).reshape(-1)
+        y_true = np.concatenate(labels, axis=0).reshape(-1)
+        f1_macro = _macro_f1_score(y_true, y_pred)
+    else:
+        f1_macro = float("nan")
+    return {"acc": float(acc), "f1_macro": float(f1_macro)}

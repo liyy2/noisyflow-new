@@ -1,0 +1,43 @@
+# CAMELYON17 IJCAI'19 DPOT/DPDA baseline config.
+# Target in plots/paper.tex: DP-OT (MLP) Acc 91.80, eps 0.62.
+# Command: python scripts/run_ijcai2019_dpot_curve.py --config configs/publication/camelyon17_baseline_ijcai2019_dpot_eps0p62.yaml
+
+seed: 0
+device: cuda
+
+data:
+  type: camelyon17_wilds
+  params:
+    path: datasets/camelyon17_wilds/camelyon17_resnet18.npz
+    source_hospitals: [0, 3, 4]
+    source_splits: [train, id_val]
+    target_split: test
+    target_hospital: 2
+    n_per_client: null
+    target_ref_size: 2000
+    target_test_size: 10000
+    standardize: true
+    pca_dim: 128
+    seed: 0
+
+loaders:
+  synth_batch_size: 1024
+
+stage3:
+  ref_train_size: 50
+  combined_synth_train_size: null
+
+ijcai2019_dpot:
+  projection_dim: 30
+  target_ot_size: 1000
+  source_ot_size: 4000
+  sinkhorn_reg: 30.0
+  sinkhorn_iters: 150
+  sinkhorn_eps: 1e-9
+  labelwise_ot: true
+  classifier: mlp
+  noise_ratios: [10.0]
+  delta: 1e-5
+  label_epsilon: 0.15
+  metric: acc_ref_plus_transport
+  output_path: plots/privacy_curve_camelyon17_ijcai2019_dpda_labelwise_eps0p62.pdf

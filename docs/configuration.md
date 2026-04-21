@@ -32,7 +32,7 @@ data:
 - `stage_shadow_mia`: Shadow-model attack on stage 1/2 models.
 
 ## `data`
-- `type`: `federated_mixture_gaussians`, `mixture_gaussians` (alias), `toy_federated_gaussians`, `federated_cell_dataset`, or `cellot_lupuspatients_kang_hvg`.
+- `type`: `federated_mixture_gaussians`, `mixture_gaussians` (alias), `toy_federated_gaussians`, `federated_cell_dataset`, `cellot_lupuspatients_kang_hvg`, `cellot_statefate_invitro_hvg`, `cellot_sciplex3_hvg`, `camelyon17`, `camelyon17_wilds`, or `brainscope`.
 - `params`: Passed through to the chosen data builder. See `docs/data.md`.
 
 ## `loaders`
@@ -43,9 +43,13 @@ data:
 - `drop_last`: Whether to drop last partial batch.
 
 ## `stage1`
-- `epochs`, `lr`: Flow training schedule.
-- `hidden`: Hidden layer widths for the flow MLP.
-- `time_emb_dim`, `label_emb_dim`: Embedding dimensions.
+- `model`: `flow` or `vae`.
+- `epochs`, `lr`: Stage I training schedule.
+- `hidden`: Hidden layer widths for the Stage I MLP(s).
+- `time_emb_dim`, `label_emb_dim`: Flow/VAE embedding dimensions. `time_emb_dim` is used only by `model: flow`.
+- `vae`: VAE-specific settings when `model: vae`.
+  - `latent_dim`: Latent dimension.
+  - `beta`: Weight on the KL term.
 - `label_prior`: Optional DP label prior from noisy counts.
   - `enabled`: Boolean.
   - `mechanism`: `gaussian` or `laplace`.

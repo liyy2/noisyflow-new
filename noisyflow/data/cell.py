@@ -179,6 +179,7 @@ def make_federated_cell_dataset(
     target_condition: str = "stim",
     split_mode: str = "ood",
     holdout_client: Optional[Union[str, int]] = None,
+    source_size_per_client: Optional[Union[int, float]] = None,
     target_ref_size: Optional[Union[int, float]] = None,
     target_test_size: Optional[Union[int, float]] = None,
     max_clients: Optional[int] = None,
@@ -285,6 +286,9 @@ def make_federated_cell_dataset(
         idx = source_idx[clients_raw[source_idx] == cid]
         if int(idx.shape[0]) < int(min_cells_per_client):
             continue
+        n_source = _as_size(source_size_per_client, total=int(idx.shape[0]))
+        if n_source is not None:
+            idx = _subsample_indices(rng, idx, n_source, stratify=encoded_labels[idx])
         x_c = x[idx]
         y_c = encoded_labels[idx]
         client_x_blocks.append(x_c)
@@ -347,6 +351,62 @@ def make_cellot_lupuspatients_kang_hvg(
         target_condition=str(kwargs.pop("target_condition", "stim")),
         split_mode=str(kwargs.pop("split_mode", "ood")),
         holdout_client=holdout_client,
+        seed=seed,
+        **kwargs,
+    )
+
+
+def make_cellot_statefate_invitro_hvg(
+    *,
+    path: str,
+    seed: int = 0,
+    **kwargs: Any,
+) -> Tuple[List[TensorDataset], TensorDataset, TensorDataset]:
+    """
+    Convenience wrapper matching the CellOT statefate invitro config defaults.
+
+    Dataset notes (invitro-hvg.h5ad):
+      - label: `annotation`
+      - client: `library`
+      - condition: `condition` (control -> developed)
+    """
+    return make_federated_cell_dataset(
+        path=path,
+        label_key=str(kwargs.pop("label_key", "annotation")),
+        client_key=str(kwargs.pop("client_key", "library")),
+        condition_key=str(kwargs.pop("condition_key", "condition")),
+        source_condition=str(kwargs.pop("source_condition", "control")),
+        target_condition=str(kwargs.pop("target_condition", "developed")),
+        split_mode=str(kwargs.pop("split_mode", "iid")),
+        holdout_client=kwargs.pop("holdout_client", None),
+        seed=seed,
+        **kwargs,
+    )
+
+
+def make_cellot_sciplex3_hvg(
+    *,
+    path: str,
+    seed: int = 0,
+    **kwargs: Any,
+) -> Tuple[List[TensorDataset], TensorDataset, TensorDataset]:
+    """
+    Convenience wrapper matching the CellOT sciplex3 config defaults.
+
+    Dataset notes (hvg.h5ad):
+      - label: `cell_type`
+      - client: `replicate`
+      - condition: `drug-dose` (control-0 -> target drug-dose)
+    """
+    return make_federated_cell_dataset(
+        path=path,
+        label_key=str(kwargs.pop("label_key", "cell_type")),
+        client_key=str(kwargs.pop("client_key", "replicate")),
+        condition_key=str(kwargs.pop("condition_key", "drug-dose")),
+        source_condition=str(kwargs.pop("source_condition", "control-0")),
+        target_condition=str(kwargs.pop("target_condition", "trametinib-1000")),
+        split_mode=str(kwargs.pop("split_mode", "iid")),
+        holdout_client=kwargs.pop("holdout_client", None),
         seed=seed,
         **kwargs,
     )

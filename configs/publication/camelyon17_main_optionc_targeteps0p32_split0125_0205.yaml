@@ -1,0 +1,99 @@
+# CAMELYON17 Option C target-epsilon tuning record.
+# Goal from paper row: Ref+Synth ~= 92.51%, epsilon_total ~= 0.32.
+# Verified result:
+#   results/publication_repro/camelyon17_main_optionc_targeteps0p32_split0125_0205.json
+#   epsilon_total=0.3175, Ref+Synth=92.67%, Synth-only=92.30%.
+# This split allocates target epsilon 0.125 to Stage I and 0.205 to Stage II.
+# Canonical publication copy: configs/publication/camelyon17_main_optionc_eps0p32.yaml.
+# Run:
+#   conda run -n edm python scripts/run_config_to_json.py --config configs/publication/camelyon17_main_optionc_targeteps0p32_split0125_0205.yaml --out results/publication_repro/camelyon17_main_optionc_targeteps0p32_split0125_0205.json --device cuda
+seed: 0
+device: cuda
+
+data:
+  type: camelyon17_wilds
+  params:
+    path: datasets/camelyon17_wilds/camelyon17_resnet18.npz
+    source_hospitals: [0, 3, 4]
+    source_splits: [train, id_val]
+    target_split: test
+    target_hospital: 2
+    n_per_client: null
+    target_ref_size: 2000
+    target_test_size: 10000
+    standardize: true
+    pca_dim: 128
+    seed: 0
+
+loaders:
+  batch_size: 256
+  target_batch_size: 256
+  test_batch_size: 1024
+  synth_batch_size: 1024
+  drop_last: true
+
+stage1:
+  epochs: 20
+  lr: 0.001
+  hidden: [256, 256]
+  time_emb_dim: 64
+  label_emb_dim: 32
+  label_prior:
+    enabled: false
+  dp:
+    enabled: true
+    max_grad_norm: 1.0
+    noise_multiplier: 1.0
+    delta: 1e-5
+    grad_sample_mode: functorch
+    target_epsilon: 0.125
+
+stage2:
+  option: C
+  pair_by_label: true
+  pair_by_ot: false
+  public_synth_steps: 1
+  public_pretrain_epochs: 0
+  epochs: 80
+  lr: 0.001
+  flow_steps: 50
+  dp:
+    enabled: true
+    max_grad_norm: 1.0
+    noise_multiplier: 1.0
+    delta: 1e-5
+    grad_sample_mode: functorch
+    target_epsilon: 0.205
+  rectified_flow:
+    enabled: true
+    hidden: [256, 256]
+    time_emb_dim: 64
+    act: silu
+    transport_steps: 100
+  cellot:
+    enabled: false
+
+stage3:
+  classifier: mlp
+  epochs: 20
+  lr: 0.001
+  hidden: [256, 256]
+  flow_steps: 50
+  M_per_client: 12000
+  ref_train_size: 50
+  combined_synth_train_size: null
+
+privacy_curve:
+  enabled: false
+
+membership_inference:
+  enabled: false
+
+shadow_mia:
+  enabled: false
+
+stage_mia:
+  enabled: false
+
+stage_shadow_mia:
+  enabled: false

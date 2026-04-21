@@ -1,0 +1,92 @@
+# BrainSCOPE excitatory publication table run.
+# Paper targets: ref-only n=20 acc=0.612; raw-synth baseline acc=0.610-0.612;
+# ref+transported n=20+100 acc=0.755; SW2 private/ref=13.20, raw/ref=17.24, transported/ref=13.74.
+# Command: python run.py --config configs/publication/brainscope_table_seed0.yaml
+# Note: run.py reports the built-in raw-synth baseline using all M_per_client raw samples.
+
+seed: 0
+device: cuda
+
+data:
+  type: brainscope
+  params:
+    path: datasets/brainscope/brainscope_excitatory_neur.npz
+    label_mode: case_control
+    source_cohorts: [CMC]
+    include_disorders:
+      - control
+      - Control
+      - Schizophrenia
+      - Bipolar Disorder
+      - ASD
+      - Alzheimers/dementia
+      - cognitive impairment
+    target_test_size: 0.2
+    standardize: true
+    pca_dim: 50
+    seed: 0
+
+loaders:
+  batch_size: 64
+  target_batch_size: 64
+  test_batch_size: 256
+  synth_batch_size: 256
+  drop_last: false
+
+stage1:
+  epochs: 80
+  lr: 0.001
+  hidden: [256, 256]
+  time_emb_dim: 64
+  label_emb_dim: 32
+  label_prior:
+    enabled: true
+    mechanism: gaussian
+    sigma: 1.0
+  dp:
+    enabled: false
+
+stage2:
+  option: C
+  pair_by_label: true
+  pair_by_ot: false
+  epochs: 80
+  lr: 0.001
+  flow_steps: 50
+  dp:
+    enabled: false
+  rectified_flow:
+    enabled: true
+    hidden: [256, 256]
+    time_emb_dim: 64
+    act: silu
+    transport_steps: 50
+  cellot:
+    enabled: false
+
+stage3:
+  classifier: rf
+  epochs: 10
+  lr: 0.001
+  hidden: [256, 256]
+  flow_steps: 50
+  M_per_client: 5000
+
+  # Table point: Ref-only uses 20 target labels; Ref+Synth uses 20 ref + 100 transported labels.
+  ref_train_size: 20
+  combined_synth_train_size: 100
+
+privacy_curve:
+  enabled: false
+
+membership_inference:
+  enabled: false
+
+shadow_mia:
+  enabled: false
+
+stage_mia:
+  enabled: false
+
+stage_shadow_mia:
+  enabled: false

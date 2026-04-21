@@ -1,0 +1,86 @@
+# Publication config for plots/paper.tex, Mixture of Gaussians Table tab:mog-ref100.
+# Verified on GPU in results/publication_repro/benchmark_mog_ref100_table_nodp_check.json:
+# ref-only acc=0.602, transported-only acc=0.671, Ref+transported acc=0.667.
+# The paper reports Ref+transported=0.670; the 0.003 difference is RF/training noise.
+# Run:
+#   conda run -n edm python scripts/run_config_to_json.py --config configs/publication/benchmark_mog_ref100_table_nodp.yaml --out results/publication_repro/benchmark_mog_ref100_table_nodp.json --device cuda
+seed: 0
+device: cuda
+
+data:
+  type: federated_mixture_gaussians
+  params:
+    K: 3
+    n_per_client: 1500
+    n_target_ref: 2000
+    n_target_test: 1000
+    d: 50
+    num_classes: 6
+    component_scale: 0.45
+    component_cov: 1.15
+    seed: 0
+
+loaders:
+  batch_size: 256
+  target_batch_size: 256
+  test_batch_size: 512
+  synth_batch_size: 512
+  drop_last: true
+
+stage1:
+  model: flow
+  epochs: 20
+  lr: 0.001
+  hidden: [128, 128]
+  time_emb_dim: 32
+  label_emb_dim: 32
+  label_prior:
+    enabled: true
+    mechanism: gaussian
+    sigma: 1.0
+  dp:
+    enabled: false
+
+stage2:
+  option: B
+  pair_by_label: true
+  pair_by_ot: true
+  pair_by_ot_method: hungarian
+  epochs: 60
+  lr: 0.001
+  flow_steps: 50
+  dp:
+    enabled: false
+  cellot:
+    enabled: false
+  rectified_flow:
+    enabled: true
+    hidden: [256, 256]
+    time_emb_dim: 64
+    act: silu
+    transport_steps: 50
+
+stage3:
+  classifier: rf
+  epochs: 30
+  lr: 0.001
+  hidden: [128, 128]
+  flow_steps: 50
+  M_per_client: 5000
+  ref_train_size: 100
+  combined_synth_train_size: null
+
+privacy_curve:
+  enabled: false
+
+membership_inference:
+  enabled: false
+
+shadow_mia:
+  enabled: false
+
+stage_mia:
+  enabled: false
+
+stage_shadow_mia:
+  enabled: false

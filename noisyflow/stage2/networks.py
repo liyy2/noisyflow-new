@@ -192,12 +192,21 @@ class RectifiedFlowOT(nn.Module):
         time_emb_dim: int = 64,
         act: str = "silu",
         transport_steps: int = 50,
+        mlp_norm: str = "none",
+        mlp_dropout: float = 0.0,
     ):
         super().__init__()
         self.d = int(d)
         self.transport_steps = int(transport_steps)
         self.time_emb = SinusoidalTimeEmbedding(time_emb_dim)
-        self.mlp = MLP(self.d + time_emb_dim, self.d, hidden=hidden, act=act)
+        self.mlp = MLP(
+            self.d + time_emb_dim,
+            self.d,
+            hidden=hidden,
+            act=act,
+            norm=mlp_norm,
+            dropout=mlp_dropout,
+        )
 
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """

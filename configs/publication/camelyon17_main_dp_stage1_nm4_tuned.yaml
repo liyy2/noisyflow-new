@@ -1,0 +1,89 @@
+# CAMELYON17-WILDS tuned Stage-I-only DP NoisyFlow run.
+# Verified CAMELYON17-WILDS tuned Stage-I-only DP NoisyFlow run.
+# results/publication_repro/camelyon17_main_dp_stage1_nm4_tuned.json:
+# nm=4, n_ref=50, n_syn=36000, Synth-only 92.33, Ref-only 85.98,
+# Ref+Synth 92.27, eps_max 0.491, SW2 source 0.868, synth 1.100, transported 0.194.
+# Command: conda run -n edm python scripts/run_config_to_json.py --config configs/publication/camelyon17_main_dp_stage1_nm4_tuned.yaml --out results/publication_repro/camelyon17_main_dp_stage1_nm4_tuned.json --device cuda
+
+seed: 0
+device: cuda
+
+data:
+  type: camelyon17_wilds
+  params:
+    path: datasets/camelyon17_wilds/camelyon17_resnet18.npz
+    source_hospitals: [0, 3, 4]
+    source_splits: [train, id_val]
+    target_split: test
+    target_hospital: 2
+    n_per_client: null
+    target_ref_size: 2000
+    target_test_size: 10000
+    standardize: true
+    pca_dim: 128
+    seed: 0
+
+loaders:
+  batch_size: 256
+  target_batch_size: 256
+  test_batch_size: 1024
+  synth_batch_size: 1024
+  drop_last: true
+
+stage1:
+  epochs: 20
+  lr: 0.001
+  hidden: [256, 256]
+  time_emb_dim: 64
+  label_emb_dim: 32
+  label_prior:
+    enabled: false
+  dp:
+    enabled: true
+    max_grad_norm: 1.0
+    noise_multiplier: 4.0
+    delta: 1e-5
+    grad_sample_mode: functorch
+
+stage2:
+  option: B
+  pair_by_label: true
+  pair_by_ot: true
+  # Longer transport schedule; post-processing under Option B.
+  epochs: 80
+  lr: 0.001
+  flow_steps: 50
+  dp:
+    enabled: false
+  rectified_flow:
+    enabled: true
+    hidden: [256, 256]
+    time_emb_dim: 64
+    act: silu
+    transport_steps: 100
+  cellot:
+    enabled: false
+
+stage3:
+  epochs: 10
+  lr: 0.001
+  hidden: [256, 256]
+  flow_steps: 50
+  M_per_client: 12000
+  ref_train_size: 50
+  combined_synth_train_size: null
+
+privacy_curve:
+  enabled: false
+
+membership_inference:
+  enabled: false
+
+shadow_mia:
+  enabled: false
+
+stage_mia:
+  enabled: false
+
+stage_shadow_mia:
+  enabled: false

@@ -38,10 +38,28 @@ python noisyflow_sketch.py
 
 ## Configuration
 - Configs live under `configs/` and are loaded by `run.py`.
-- `data.type` supports `federated_mixture_gaussians`, `mixture_gaussians`, and `toy_federated_gaussians`.
-- Enabling DP (`stage1.dp` / `stage2.dp`) requires Opacus; stage2 DP requires
-  `stage2.cellot.enabled: true` and `stage2.option: A`.
+- `data.type` supports `federated_mixture_gaussians`, `mixture_gaussians`, `toy_federated_gaussians`, `federated_cell_dataset`, `pamap2` (PAMAP2 wearable time-series windows), `camelyon17`, `camelyon17_wilds`, `brainscope`, and the CellOT convenience wrappers `cellot_lupuspatients_kang_hvg`, `cellot_statefate_invitro_hvg`, `cellot_sciplex3_hvg`.
+- Enabling DP (`stage1.dp` / `stage2.dp`) requires Opacus.
 - `privacy_curve.enabled: true` runs a sweep and writes `privacy_utility.png` (requires matplotlib).
+
+To fetch CellOT preprocessed datasets:
+```bash
+python scripts/fetch_cellot_datasets.py --dataset lupuspatients
+python scripts/fetch_cellot_datasets.py --dataset statefate
+python scripts/fetch_cellot_datasets.py --dataset sciplex3
+```
+
+To prepare the BrainSCOPE-style cohort dataset from the processed matrices in `liyy2/aging_YL`:
+```bash
+python scripts/prepare_brainscope_aging_yl.py
+python run.py --config configs/brainscope_excitatory_smoke.yaml
+python run.py --config configs/brainscope_excitatory_demo_best.yaml
+
+# Optional: sweep label budgets (ref-only vs synth-only vs ref+synth)
+python scripts/sweep_ref_sweet_spot.py --config configs/brainscope_excitatory_ref50_optionC.yaml \
+  --ref-sizes 5,10,20,30,50,75,100,150,all --syn-sizes 100,200,500,1000,2000,5000,all \
+  --output-json plots/brainscope_ref_sweep_seed0.json --plot-output plots/brainscope_ref_sweep_seed0.pdf
+```
 
 ## Documentation
 Start here: `docs/README.md`.

@@ -1,86 +1,83 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-*.h5ad
-# C extensions
-*.so
+# Allowlist repository inputs only. New files are ignored unless re-included
+# below, keeping experiment outputs, datasets, papers, logs, and local agent
+# state out of git by default.
+*
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# Keep only allowlisted directories traversable.
+!configs/
+!configs/publication/
+!configs/publication/**/
+!noisyflow/
+!noisyflow/**/
+!tests/
+!tests/**/
+!scripts/
+!scripts/**/
+!docs/
+!docs/**/
+!requirements/
+!requirements/**/
+!tex/
 
-# PyInstaller
-*.manifest
-*.spec
+# Repository metadata and dependency manifests.
+!.gitignore
+!AGENTS.md
+!README.md
+!LICENSE
+!LICENSE.*
+!requirements*.txt
+!requirements*.in
+!constraints*.txt
+!constraints*.in
+!environment*.yml
+!environment*.yaml
+!pyproject.toml
+!setup.cfg
+!setup.py
+!MANIFEST.in
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# Root Python entry points.
+!run.py
+!noisyflow_sketch.py
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
+# Package source and tests.
+!noisyflow/*.py
+!noisyflow/**/*.py
+!tests/*.py
+!tests/**/*.py
 
-# Type checkers / linters
-.mypy_cache/
-.dmypy.json
-dmypy.json
-.pyre/
-.pytype/
-.ruff_cache/
+# Scripts.
+!scripts/*.py
+!scripts/**/*.py
+!scripts/*.sh
+!scripts/**/*.sh
 
-# Jupyter
-.ipynb_checkpoints/
+# Documentation.
+!docs/*.md
+!docs/**/*.md
+!docs/*.rst
+!docs/**/*.rst
+!docs/*.txt
+!docs/**/*.txt
 
-# Virtual environments
-.venv/
-venv/
-ENV/
-env/
-env.bak/
-venv.bak/
-__pypackages__/
+# Requirement files in a requirements/ directory, if present.
+!requirements/*.txt
+!requirements/**/*.txt
+!requirements/*.in
+!requirements/**/*.in
+!requirements/*.yml
+!requirements/**/*.yml
+!requirements/*.yaml
+!requirements/**/*.yaml
 
-# IDEs / editors
-.vscode/
-.idea/
-*.swp
+# Existing paper source files only; generated tex artifacts remain ignored.
+!tex/cellot_lupus_kang_experiment.tex
+!tex/cellot_lupus_kang_metrics_results.tex
+!tex/cellot_lupus_kang_metrics_results_tuned.tex
+!tex/dp_gpu_rectified_flow_ref100_synhelps.tex
 
-# OS files
-.DS_Store
-Thumbs.db
-*:Zone.Identifier
-
-# Outputs
-privacy_utility*.png
-*.pt
-*.pth
-*.ckpt
-
-# Local datasets (not committed)
-datasets/
+# Configs: only publication configs are eligible for git.
+!configs/publication/*.yaml
+!configs/publication/**/*.yaml
+!configs/publication/*.yml
+!configs/publication/**/*.yml

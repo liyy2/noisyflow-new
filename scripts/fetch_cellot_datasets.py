@@ -67,7 +67,7 @@ def main() -> None:
         "--dataset",
         type=str,
         default="lupuspatients",
-        choices=["lupuspatients"],
+        choices=["lupuspatients", "statefate", "sciplex3"],
         help="Which dataset folder to extract from the ZIP.",
     )
     args = parser.parse_args()
@@ -81,6 +81,13 @@ def main() -> None:
 
     if args.dataset == "lupuspatients":
         prefixes = ["datasets/scrna-lupuspatients/"]
+        expected = extract_root / "datasets" / "scrna-lupuspatients" / "kang-hvg.h5ad"
+    elif args.dataset == "statefate":
+        prefixes = ["datasets/scrna-statefate/"]
+        expected = extract_root / "datasets" / "scrna-statefate" / "invitro-hvg.h5ad"
+    elif args.dataset == "sciplex3":
+        prefixes = ["datasets/scrna-sciplex3/"]
+        expected = extract_root / "datasets" / "scrna-sciplex3" / "hvg.h5ad"
     else:
         raise ValueError(f"Unsupported dataset {args.dataset}")
 
@@ -90,7 +97,6 @@ def main() -> None:
         for name in members:
             zf.extract(name, extract_root)
 
-    expected = extract_root / "datasets" / "scrna-lupuspatients" / "kang-hvg.h5ad"
     if expected.exists():
         print(f"[fetch] Ready: {expected}")
     else:
@@ -99,4 +105,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

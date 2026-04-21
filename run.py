@@ -20,12 +20,19 @@ from noisyflow.attacks.membership_inference import (
 from noisyflow.config import ExperimentConfig, PrivacyCurveConfig, load_config
 from noisyflow.data import (
     make_cellot_lupuspatients_kang_hvg,
+    make_cellot_sciplex3_hvg,
+    make_cellot_statefate_invitro_hvg,
+    make_federated_4i_proteomics,
+    make_federated_brainscope,
+    make_federated_camelyon17,
+    make_federated_camelyon17_wilds,
     make_federated_cell_dataset,
     make_federated_mixture_gaussians,
+    make_federated_pamap2,
     make_toy_federated_gaussians,
 )
-from noisyflow.stage1.networks import VelocityField
-from noisyflow.stage1.training import sample_flow_euler, train_flow_stage1
+from noisyflow.stage1.networks import ConditionalVAE, VelocityField
+from noisyflow.stage1.training import sample_flow_euler, sample_vae, train_flow_stage1, train_vae_stage1
 from noisyflow.stage2.networks import CellOTICNN, ICNN, RectifiedFlowOT
 from noisyflow.stage2.training import train_ot_stage2, train_ot_stage2_cellot, train_ot_stage2_rectified_flow
 from noisyflow.stage3.networks import Classifier
@@ -39,7 +46,16 @@ data_builders = {
     "federated_mixture_gaussians": make_federated_mixture_gaussians,
     "mixture_gaussians": make_federated_mixture_gaussians,
     "federated_cell_dataset": make_federated_cell_dataset,
+    "federated_4i_proteomics": make_federated_4i_proteomics,
+    "pamap2": make_federated_pamap2,
+    "federated_pamap2": make_federated_pamap2,
     "cellot_lupuspatients_kang_hvg": make_cellot_lupuspatients_kang_hvg,
+    "cellot_statefate_invitro_hvg": make_cellot_statefate_invitro_hvg,
+    "cellot_sciplex3_hvg": make_cellot_sciplex3_hvg,
+    "camelyon17": make_federated_camelyon17,
+    "camelyon17_wilds": make_federated_camelyon17_wilds,
+    "brainscope": make_federated_brainscope,
+    "federated_brainscope": make_federated_brainscope,
 }
 
 
@@ -49,13 +65,32 @@ def _build_datasets(cfg: ExperimentConfig):
     return data_builders[cfg.data.type](**cfg.data.params)
 
 
-def _infer_dims(cfg: ExperimentConfig, client_datasets: List[TensorDataset]) -> Tuple[int, int]:
+def _infer_dims(
+    cfg: ExperimentConfig,
+    client_datasets: List[TensorDataset],
+    target_ref: Optional[TensorDataset] = None,
+    target_test: Optional[TensorDataset] = None,
+) -> Tuple[int, int]:
     d = cfg.data.params.get("d")
     if d is None:
         d = int(client_datasets[0].tensors[0].shape[1])
     num_classes = cfg.data.params.get("num_classes")
     if num_classes is None:
-        num_classes = int(client_datasets[0].tensors[1].max().item() + 1)
+        label_tensors: List[torch.Tensor] = []
+        for ds in client_datasets:
+            if isinstance(ds, TensorDataset) and len(ds.tensors) >= 2:
+                label_tensors.append(ds.tensors[1])
+        for ds in (target_ref, target_test):
+            if isinstance(ds, TensorDataset) and len(ds.tensors) >= 2:
+                label_tensors.append(ds.tensors[1])
+        max_label = -1
+        for t in label_tensors:
+            if t.numel() == 0:
+                continue
+            max_label = max(max_label, int(t.max().item()))
+        if max_label < 0:
+            raise ValueError("Could not infer num_classes (no non-empty label tensors found).")
+        num_classes = max_label + 1
     return int(d), int(num_classes)
 
 
@@ -80,6 +115,42 @@ def _kernel_init_from_config(cfg: Dict[str, Any]) -> Optional[Callable[[torch.Te
 
         return init
     raise ValueError(f"Unknown kernel_init name '{name}'")
+
+
+def _stage1_model_name(cfg: ExperimentConfig) -> str:
+    model_name = str(getattr(cfg.stage1, "model", "flow")).strip().lower()
+    if model_name not in {"flow", "vae"}:
+        raise ValueError(f"stage1.model must be one of {{'flow','vae'}} (got '{model_name}')")
+    return model_name
+
+
+def _build_stage1_model(cfg: ExperimentConfig, *, d: int, num_classes: int) -> torch.nn.Module:
+    model_name = _stage1_model_name(cfg)
+    if model_name == "flow":
+        return VelocityField(
+            d=d,
+            num_classes=num_classes,
+            hidden=cfg.stage1.hidden,
+            time_emb_dim=cfg.stage1.time_emb_dim,
+            label_emb_dim=cfg.stage1.label_emb_dim,
+            act=cfg.stage1.act,
+            mlp_norm=cfg.stage1.mlp_norm,
+            mlp_dropout=cfg.stage1.mlp_dropout,
+            cond_dim=cfg.stage1.cond_dim,
+            cond_emb_dim=cfg.stage1.cond_emb_dim,
+        )
+    return ConditionalVAE(
+        d=d,
+        num_classes=num_classes,
+        hidden=cfg.stage1.hidden,
+        latent_dim=cfg.stage1.vae.latent_dim,
+        label_emb_dim=cfg.stage1.label_emb_dim,
+        cond_dim=cfg.stage1.cond_dim,
+        cond_emb_dim=cfg.stage1.cond_emb_dim,
+        act=cfg.stage1.act,
+        mlp_norm=cfg.stage1.mlp_norm,
+        mlp_dropout=cfg.stage1.mlp_dropout,
+    )
 
 
 def _split_dataset(ds: TensorDataset, holdout_fraction: float, seed: int) -> Tuple[TensorDataset, TensorDataset]:
@@ -139,18 +210,21 @@ def _subsample_labeled_dataset(
 def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
     set_seed(cfg.seed)
     device = cfg.device
+    stage1_model_name = _stage1_model_name(cfg)
 
     data_builder = data_builders.get(cfg.data.type)
     if data_builder is None:
         raise ValueError(f"Unknown data.type '{cfg.data.type}'")
     client_datasets, target_ref, target_test = data_builder(**cfg.data.params)
-    d, num_classes = _infer_dims(cfg, client_datasets)
+    d, num_classes = _infer_dims(cfg, client_datasets, target_ref=target_ref, target_test=target_test)
 
     target_loader = DataLoader(
         target_ref,
         batch_size=cfg.loaders.target_batch_size,
         shuffle=True,
-        drop_last=cfg.loaders.drop_last,
+        # Stage II uses an infinite `cycle(target_loader)` iterator; drop_last=True can create
+        # an empty loader when target_ref is smaller than target_batch_size, leading to a hang.
+        drop_last=False,
     )
     target_test_loader = DataLoader(
         target_test,
@@ -163,6 +237,8 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
     stage1_eps: List[float] = []
     stage2_eps: List[float] = []
     needs_holdout = cfg.stage_mia.enabled or cfg.stage_shadow_mia.enabled
+    if needs_holdout and stage1_model_name != "flow":
+        raise ValueError("stage_mia and stage_shadow_mia currently support only stage1.model='flow'")
     for idx, ds in enumerate(client_datasets):
         if needs_holdout:
             train_ds, holdout_ds = _split_dataset(
@@ -181,23 +257,38 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
             drop_last=cfg.loaders.drop_last,
         )
 
-        flow = VelocityField(
-            d=d,
-            num_classes=num_classes,
-            hidden=cfg.stage1.hidden,
-            time_emb_dim=cfg.stage1.time_emb_dim,
-            label_emb_dim=cfg.stage1.label_emb_dim,
-        )
-        flow_stats = train_flow_stage1(
-            flow,
-            loader,
-            epochs=cfg.stage1.epochs,
-            lr=cfg.stage1.lr,
-            dp=cfg.stage1.dp,
-            device=device,
-        )
-        if "epsilon_flow" in flow_stats:
-            stage1_eps.append(float(flow_stats["epsilon_flow"]))
+        stage1_model = _build_stage1_model(cfg, d=d, num_classes=num_classes)
+        if stage1_model_name == "flow":
+            stage1_stats = train_flow_stage1(
+                stage1_model,
+                loader,
+                epochs=cfg.stage1.epochs,
+                lr=cfg.stage1.lr,
+                optimizer=cfg.stage1.optimizer,
+                weight_decay=cfg.stage1.weight_decay,
+                ema_decay=cfg.stage1.ema_decay,
+                loss_normalize_by_dim=cfg.stage1.loss_normalize_by_dim,
+                dp=cfg.stage1.dp,
+                device=device,
+            )
+        else:
+            stage1_stats = train_vae_stage1(
+                stage1_model,
+                loader,
+                epochs=cfg.stage1.epochs,
+                lr=cfg.stage1.lr,
+                optimizer=cfg.stage1.optimizer,
+                weight_decay=cfg.stage1.weight_decay,
+                ema_decay=cfg.stage1.ema_decay,
+                loss_normalize_by_dim=cfg.stage1.loss_normalize_by_dim,
+                beta=cfg.stage1.vae.beta,
+                dp=cfg.stage1.dp,
+                device=device,
+            )
+        if "epsilon_stage1" in stage1_stats:
+            stage1_eps.append(float(stage1_stats["epsilon_stage1"]))
+        elif "epsilon_flow" in stage1_stats:
+            stage1_eps.append(float(stage1_stats["epsilon_flow"]))
 
         prior = None
         if cfg.stage1.label_prior.enabled:
@@ -213,7 +304,8 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
         def synth_sampler(
             batch_size: int,
             labels: Optional[torch.Tensor] = None,
-            flow=flow,
+            stage1_model=stage1_model,
+            stage1_model_name=stage1_model_name,
         ) -> torch.Tensor:
             if labels is None:
                 labels = torch.randint(0, num_classes, (batch_size,), device=device)
@@ -221,7 +313,13 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
                 labels = labels.to(device).long().view(-1)
                 if int(labels.numel()) != int(batch_size):
                     raise ValueError(f"labels must have shape ({batch_size},), got {tuple(labels.shape)}")
-            return sample_flow_euler(flow.to(device).eval(), labels, n_steps=cfg.stage2.flow_steps).cpu()
+            if stage1_model_name == "flow":
+                return sample_flow_euler(
+                    stage1_model.to(device).eval(),
+                    labels,
+                    n_steps=cfg.stage2.flow_steps,
+                ).cpu()
+            return sample_vae(stage1_model.to(device).eval(), labels).cpu()
 
         use_cellot = cfg.stage2.cellot.enabled
         use_rectified_flow = cfg.stage2.rectified_flow.enabled
@@ -279,6 +377,8 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
                 time_emb_dim=cfg.stage2.rectified_flow.time_emb_dim,
                 act=cfg.stage2.rectified_flow.act,
                 transport_steps=cfg.stage2.rectified_flow.transport_steps,
+                mlp_norm=cfg.stage2.rectified_flow.mlp_norm,
+                mlp_dropout=cfg.stage2.rectified_flow.mlp_dropout,
             )
             ot_stats = train_ot_stage2_rectified_flow(
                 ot,
@@ -287,9 +387,16 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
                 option=cfg.stage2.option,
                 pair_by_label=cfg.stage2.pair_by_label,
                 pair_by_ot=cfg.stage2.pair_by_ot,
+                pair_by_ot_method=cfg.stage2.pair_by_ot_method,
                 synth_sampler=synth_sampler if cfg.stage2.option.upper() in {"B", "C"} else None,
                 epochs=cfg.stage2.epochs,
                 lr=cfg.stage2.lr,
+                optimizer=cfg.stage2.optimizer,
+                weight_decay=cfg.stage2.weight_decay,
+                ema_decay=cfg.stage2.ema_decay,
+                loss_normalize_by_dim=cfg.stage2.loss_normalize_by_dim,
+                public_synth_steps=cfg.stage2.public_synth_steps,
+                public_pretrain_epochs=cfg.stage2.public_pretrain_epochs,
                 dp=cfg.stage2.dp,
                 device=device,
             )
@@ -317,13 +424,20 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
         if "epsilon_ot" in ot_stats:
             stage2_eps.append(float(ot_stats["epsilon_ot"]))
 
-        flow_cpu = unwrap_model(flow).cpu()
+        stage1_model_cpu = unwrap_model(stage1_model).cpu()
         ot_cpu = unwrap_model(ot).cpu()
-        clients_out.append({"flow": flow_cpu, "ot": ot_cpu, "prior": prior})
+        clients_out.append(
+            {
+                "stage1_model": stage1_model_cpu,
+                "stage1_model_type": stage1_model_name,
+                "ot": ot_cpu,
+                "prior": prior,
+            }
+        )
         if needs_holdout and holdout_ds is not None:
             mia_clients.append(
                 {
-                    "flow": flow_cpu,
+                    "flow": stage1_model_cpu,
                     "ot": ot_cpu,
                     "members": train_ds,
                     "nonmembers": holdout_ds,
@@ -368,7 +482,13 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
             print(f"[Metrics/SW2] WARNING: failed to compute SW2 metrics ({exc})")
             stats_sw2 = {}
     stats_mmd: Dict[str, float] = {}
-    if cfg.data.type in {"federated_cell_dataset", "cellot_lupuspatients_kang_hvg"}:
+    if cfg.data.type in {
+        "federated_cell_dataset",
+        "federated_4i_proteomics",
+        "cellot_lupuspatients_kang_hvg",
+        "cellot_statefate_invitro_hvg",
+        "cellot_sciplex3_hvg",
+    }:
         try:
             gammas = [2.0, 1.0, 0.5, 0.1, 0.01, 0.005]
             mmds = rbf_mmd2_multi_gamma(
@@ -399,16 +519,31 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
         drop_last=False,
     )
 
+    stage3_choice = str(getattr(cfg.stage3, "classifier", "auto")).strip().lower()
+    require_rf = stage3_choice in {"rf", "random_forest"}
     clf = None
-    try:
-        stats = train_random_forest_classifier(
-            syn_loader,
-            test_loader=target_test_loader,
-            seed=cfg.seed,
-            name="Classifier/RF-synth",
-        )
-    except RuntimeError as exc:
-        print(f"[Classifier/RF] WARNING: {exc} Falling back to MLP classifier.")
+    if _should_use_rf(cfg):
+        try:
+            stats = train_random_forest_classifier(
+                syn_loader,
+                test_loader=target_test_loader,
+                seed=cfg.seed,
+                name="Classifier/RF-synth",
+            )
+        except RuntimeError as exc:
+            if require_rf:
+                raise
+            print(f"[Classifier/RF] WARNING: {exc} Falling back to MLP classifier.")
+            clf = Classifier(d=d, num_classes=num_classes, hidden=cfg.stage3.hidden)
+            stats = train_classifier(
+                clf,
+                syn_loader,
+                test_loader=target_test_loader,
+                epochs=cfg.stage3.epochs,
+                lr=cfg.stage3.lr,
+                device=device,
+            )
+    else:
         clf = Classifier(d=d, num_classes=num_classes, hidden=cfg.stage3.hidden)
         stats = train_classifier(
             clf,
@@ -419,6 +554,49 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
             device=device,
         )
     out: Dict[str, float] = dict(stats)
+
+    # No-transport baseline: train on raw synthetic X (source-domain) and evaluate on target.
+    out.setdefault("acc_syn_raw", float("nan"))
+    out.setdefault("f1_syn_raw", float("nan"))
+    syn_raw_loader = DataLoader(
+        TensorDataset(x_syn_raw, l_syn),
+        batch_size=cfg.loaders.synth_batch_size,
+        shuffle=True,
+        drop_last=cfg.loaders.drop_last,
+    )
+    if _should_use_rf(cfg):
+        try:
+            raw_stats = train_random_forest_classifier(
+                syn_raw_loader,
+                test_loader=target_test_loader,
+                seed=cfg.seed,
+                name="Classifier/RF-synth_raw",
+            )
+        except RuntimeError as exc:
+            if require_rf:
+                raise
+            print(f"[Classifier/RF] WARNING: {exc} Falling back to MLP classifier.")
+            raw_clf = Classifier(d=d, num_classes=num_classes, hidden=cfg.stage3.hidden)
+            raw_stats = train_classifier(
+                raw_clf,
+                syn_raw_loader,
+                test_loader=target_test_loader,
+                epochs=cfg.stage3.epochs,
+                lr=cfg.stage3.lr,
+                device=device,
+            )
+    else:
+        raw_clf = Classifier(d=d, num_classes=num_classes, hidden=cfg.stage3.hidden)
+        raw_stats = train_classifier(
+            raw_clf,
+            syn_raw_loader,
+            test_loader=target_test_loader,
+            epochs=cfg.stage3.epochs,
+            lr=cfg.stage3.lr,
+            device=device,
+        )
+    out["acc_syn_raw"] = float(raw_stats.get("acc", float("nan")))
+    out["f1_syn_raw"] = float(raw_stats.get("f1_macro", float("nan")))
     out.update(stats_mmd)
     out.update(stats_sw2)
 
@@ -599,6 +777,7 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
         )
         out.update(shadow_stats)
     if stage1_eps:
+        out["epsilon_stage1_max"] = float(max(stage1_eps))
         out["epsilon_flow_max"] = float(max(stage1_eps))
     if stage2_eps:
         out["epsilon_ot_max"] = float(max(stage2_eps))
@@ -608,8 +787,10 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
     nan = float("nan")
     out.setdefault("clf_loss_ref_only", nan)
     out.setdefault("acc_ref_only", nan)
+    out.setdefault("f1_ref_only", nan)
     out.setdefault("clf_loss_ref_plus_synth", nan)
     out.setdefault("acc_ref_plus_synth", nan)
+    out.setdefault("f1_ref_plus_synth", nan)
     if isinstance(target_ref, TensorDataset) and len(target_ref.tensors) >= 2:
         ref_supervised_ds = TensorDataset(target_ref.tensors[0], target_ref.tensors[1].long())
         ref_supervised_ds = _subsample_labeled_dataset(
@@ -622,17 +803,30 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
             ref_supervised_ds,
             batch_size=cfg.loaders.target_batch_size,
             shuffle=True,
-            drop_last=cfg.loaders.drop_last,
+            drop_last=False,
         )
-        try:
-            ref_stats = train_random_forest_classifier(
-                ref_train_loader,
-                test_loader=target_test_loader,
-                seed=cfg.seed,
-                name="Classifier/RF-ref_only",
-            )
-        except RuntimeError as exc:
-            print(f"[Classifier/RF] WARNING: {exc} Falling back to MLP classifier.")
+        if _should_use_rf(cfg):
+            try:
+                ref_stats = train_random_forest_classifier(
+                    ref_train_loader,
+                    test_loader=target_test_loader,
+                    seed=cfg.seed,
+                    name="Classifier/RF-ref_only",
+                )
+            except RuntimeError as exc:
+                if require_rf:
+                    raise
+                print(f"[Classifier/RF] WARNING: {exc} Falling back to MLP classifier.")
+                ref_clf = Classifier(d=d, num_classes=num_classes, hidden=cfg.stage3.hidden)
+                ref_stats = train_classifier(
+                    ref_clf,
+                    ref_train_loader,
+                    test_loader=target_test_loader,
+                    epochs=cfg.stage3.epochs,
+                    lr=cfg.stage3.lr,
+                    device=device,
+                )
+        else:
             ref_clf = Classifier(d=d, num_classes=num_classes, hidden=cfg.stage3.hidden)
             ref_stats = train_classifier(
                 ref_clf,
@@ -644,6 +838,7 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
             )
         out["clf_loss_ref_only"] = float(ref_stats.get("clf_loss", nan))
         out["acc_ref_only"] = float(ref_stats.get("acc", nan))
+        out["f1_ref_only"] = float(ref_stats.get("f1_macro", nan))
 
         syn_supervised_ds = TensorDataset(y_syn, l_syn)
         syn_supervised_ds = _subsample_labeled_dataset(
@@ -657,17 +852,30 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
             combined_ds,
             batch_size=cfg.loaders.synth_batch_size,
             shuffle=True,
-            drop_last=cfg.loaders.drop_last,
+            drop_last=False,
         )
-        try:
-            combined_stats = train_random_forest_classifier(
-                combined_loader,
-                test_loader=target_test_loader,
-                seed=cfg.seed,
-                name="Classifier/RF-ref+syn",
-            )
-        except RuntimeError as exc:
-            print(f"[Classifier/RF] WARNING: {exc} Falling back to MLP classifier.")
+        if _should_use_rf(cfg):
+            try:
+                combined_stats = train_random_forest_classifier(
+                    combined_loader,
+                    test_loader=target_test_loader,
+                    seed=cfg.seed,
+                    name="Classifier/RF-ref+syn",
+                )
+            except RuntimeError as exc:
+                if require_rf:
+                    raise
+                print(f"[Classifier/RF] WARNING: {exc} Falling back to MLP classifier.")
+                combined_clf = Classifier(d=d, num_classes=num_classes, hidden=cfg.stage3.hidden)
+                combined_stats = train_classifier(
+                    combined_clf,
+                    combined_loader,
+                    test_loader=target_test_loader,
+                    epochs=cfg.stage3.epochs,
+                    lr=cfg.stage3.lr,
+                    device=device,
+                )
+        else:
             combined_clf = Classifier(d=d, num_classes=num_classes, hidden=cfg.stage3.hidden)
             combined_stats = train_classifier(
                 combined_clf,
@@ -679,6 +887,7 @@ def run_experiment(cfg: ExperimentConfig) -> Dict[str, float]:
             )
         out["clf_loss_ref_plus_synth"] = float(combined_stats.get("clf_loss", nan))
         out["acc_ref_plus_synth"] = float(combined_stats.get("acc", nan))
+        out["f1_ref_plus_synth"] = float(combined_stats.get("f1_macro", nan))
     return out
 
 
@@ -687,12 +896,22 @@ def _set_dp_config(dp_cfg: Optional[DPConfig], noise_multiplier: float) -> DPCon
         dp_cfg = DPConfig()
     dp_cfg.enabled = True
     dp_cfg.noise_multiplier = float(noise_multiplier)
+    dp_cfg.target_epsilon = None
     return dp_cfg
+
+
+def _should_use_rf(cfg: ExperimentConfig) -> bool:
+    choice = str(getattr(cfg.stage3, "classifier", "auto")).strip().lower()
+    if choice in {"auto", "rf", "random_forest"}:
+        return choice != "mlp"
+    if choice in {"mlp"}:
+        return False
+    raise ValueError(f"stage3.classifier must be one of: auto, rf, mlp (got '{choice}')")
 
 
 def _select_epsilon(stats: Dict[str, float], stage: str) -> Optional[float]:
     if stage == "stage1":
-        return stats.get("epsilon_flow_max")
+        return stats.get("epsilon_stage1_max", stats.get("epsilon_flow_max"))
     if stage == "stage2":
         return stats.get("epsilon_ot_max")
     if stage == "both":
@@ -755,21 +974,36 @@ def run_privacy_curve(cfg: ExperimentConfig, curve_cfg: PrivacyCurveConfig) -> L
         raise ValueError("privacy_curve.metric must be a non-empty stats key (e.g., 'acc_ref_plus_synth').")
 
     results: List[Dict[str, Optional[float]]] = []
-    for nm in curve_cfg.noise_multipliers:
+    stage2_multipliers = curve_cfg.noise_multipliers_stage2
+    if stage == "both" and stage2_multipliers is not None:
+        if len(stage2_multipliers) != len(curve_cfg.noise_multipliers):
+            raise ValueError(
+                "privacy_curve.noise_multipliers_stage2 must have the same length as privacy_curve.noise_multipliers"
+            )
+        iterator = zip(curve_cfg.noise_multipliers, stage2_multipliers)
+    else:
+        iterator = ((nm, nm) for nm in curve_cfg.noise_multipliers)
+
+    for nm1, nm2 in iterator:
         sweep_cfg = copy.deepcopy(cfg)
 
         if stage in {"stage1", "both"}:
-            sweep_cfg.stage1.dp = _set_dp_config(sweep_cfg.stage1.dp, nm)
+            sweep_cfg.stage1.dp = _set_dp_config(sweep_cfg.stage1.dp, nm1)
         if stage in {"stage2", "both"}:
-            sweep_cfg.stage2.dp = _set_dp_config(sweep_cfg.stage2.dp, nm)
+            sweep_cfg.stage2.dp = _set_dp_config(sweep_cfg.stage2.dp, nm2)
 
         stats = run_experiment(sweep_cfg)
+        entry: Dict[str, Optional[float]] = {
+            "noise_multiplier_stage1": float(nm1),
+            "noise_multiplier_stage2": float(nm2),
+            "epsilon": _select_epsilon(stats, stage),
+            "utility": stats.get(metric),
+        }
+        # Backwards-compatible alias for older plotting scripts/configs.
+        if float(nm1) == float(nm2):
+            entry["noise_multiplier"] = float(nm1)
         results.append(
-            {
-                "noise_multiplier": float(nm),
-                "epsilon": _select_epsilon(stats, stage),
-                "utility": stats.get(metric),
-            }
+            entry
         )
 
     out_path = Path(curve_cfg.output_path)

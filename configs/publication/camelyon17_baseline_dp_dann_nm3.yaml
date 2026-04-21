@@ -1,0 +1,44 @@
+# CAMELYON17 per-client DP-DANN baseline data config.
+# Target in plots/paper.tex: DP-DANN Acc 91.46, eps 0.32; existing JSON matches nm=3
+# although the paper row currently labels nm=2.
+# Command: python scripts/run_camelyon17_baselines.py --config configs/publication/camelyon17_baseline_dp_dann_nm3.yaml --per-client --epochs 10 --batch-size 256 --noise-multiplier 3 --dann-lambda 0.1 --out plots/camelyon17_dp_dann_nm3.json
+
+seed: 0
+device: cuda
+
+data:
+  type: camelyon17_wilds
+  params:
+    path: datasets/camelyon17_wilds/camelyon17_resnet18.npz
+    source_hospitals: [0, 3, 4]
+    source_splits: [train, id_val]
+    target_split: test
+    target_hospital: 2
+    n_per_client: null
+    target_ref_size: 2000
+    target_test_size: 10000
+    standardize: true
+    pca_dim: 128
+    seed: 0
+
+loaders:
+  batch_size: 256
+  target_batch_size: 256
+  test_batch_size: 1024
+  synth_batch_size: 1024
+  drop_last: true
+
+stage3:
+  epochs: 10
+  lr: 0.001
+  hidden: [256, 256]
+  ref_train_size: 50
+
+baseline:
+  kind: dp_dann_per_client
+  noise_multiplier: 3.0
+  max_grad_norm: 1.0
+  delta: 1e-5
+  dann_lambda: 0.1
+  reported_acc_percent: 91.46
+  reported_epsilon_max: 0.32

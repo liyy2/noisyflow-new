@@ -38,6 +38,7 @@ class ConfigAndRunTests(unittest.TestCase):
                 "params": {"n_per_client": 10, "d": 2, "num_classes": 3},
             },
             "stage2": {"flow_steps": 7},
+            "stage1": {"model": "vae", "vae": {"latent_dim": 12, "beta": 0.5}},
             "privacy_curve": {"enabled": True, "stage": "stage1", "noise_multipliers": [1.0]},
         }
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -50,6 +51,9 @@ class ConfigAndRunTests(unittest.TestCase):
         self.assertEqual(cfg.data.type, "federated_mixture_gaussians")
         self.assertEqual(cfg.data.params["K"], 2)
         self.assertEqual(cfg.data.params["n_per_client"], 10)
+        self.assertEqual(cfg.stage1.model, "vae")
+        self.assertEqual(cfg.stage1.vae.latent_dim, 12)
+        self.assertEqual(cfg.stage1.vae.beta, 0.5)
         self.assertEqual(cfg.stage2.flow_steps, 7)
         self.assertTrue(cfg.privacy_curve.enabled)
         self.assertEqual(cfg.privacy_curve.noise_multipliers, [1.0])
@@ -84,6 +88,69 @@ class ConfigAndRunTests(unittest.TestCase):
                 lr=1e-3,
                 hidden=[16],
                 time_emb_dim=8,
+                label_emb_dim=8,
+                label_prior=LabelPriorConfig(enabled=False),
+                dp=None,
+            ),
+            stage2=Stage2Config(
+                option="B",
+                epochs=1,
+                lr=1e-3,
+                hidden=[16],
+                act="relu",
+                add_strong_convexity=0.0,
+                flow_steps=5,
+                conj_steps=2,
+                conj_lr=0.1,
+                conj_clamp=5.0,
+                dp=None,
+            ),
+            stage3=Stage3Config(
+                epochs=1,
+                lr=1e-3,
+                hidden=[16],
+                flow_steps=5,
+                M_per_client=20,
+            ),
+            privacy_curve=PrivacyCurveConfig(enabled=False),
+        )
+
+        stats = run_experiment(cfg)
+        self.assertIn("clf_loss", stats)
+        self.assertIn("acc", stats)
+        self.assertGreaterEqual(stats["acc"], 0.0)
+        self.assertLessEqual(stats["acc"], 1.0)
+
+    def test_run_experiment_vae_smoke(self):
+        cfg = ExperimentConfig(
+            seed=0,
+            device="cpu",
+            data=DataConfig(
+                type="federated_mixture_gaussians",
+                params={
+                    "K": 1,
+                    "n_per_client": 20,
+                    "n_target_ref": 20,
+                    "n_target_test": 20,
+                    "d": 2,
+                    "num_classes": 3,
+                    "component_scale": 1.0,
+                    "component_cov": 0.1,
+                    "seed": 0,
+                },
+            ),
+            loaders=LoaderConfig(
+                batch_size=10,
+                target_batch_size=10,
+                test_batch_size=10,
+                synth_batch_size=10,
+                drop_last=True,
+            ),
+            stage1=Stage1Config(
+                model="vae",
+                epochs=1,
+                lr=1e-3,
+                hidden=[16],
                 label_emb_dim=8,
                 label_prior=LabelPriorConfig(enabled=False),
                 dp=None,

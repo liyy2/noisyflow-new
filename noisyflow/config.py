@@ -29,12 +29,29 @@ class LabelPriorConfig:
 
 
 @dataclass
+class Stage1VAEConfig:
+    latent_dim: int = 32
+    beta: float = 1.0
+
+
+@dataclass
 class Stage1Config:
+    model: str = "flow"
     epochs: int = 20
     lr: float = 1e-3
+    optimizer: str = "adam"
+    weight_decay: float = 0.0
+    ema_decay: Optional[float] = None
+    loss_normalize_by_dim: bool = False
     hidden: List[int] = field(default_factory=lambda: [128, 128])
     time_emb_dim: int = 32
     label_emb_dim: int = 32
+    act: str = "silu"
+    mlp_norm: str = "none"
+    mlp_dropout: float = 0.0
+    cond_dim: int = 0
+    cond_emb_dim: int = 0
+    vae: Stage1VAEConfig = field(default_factory=Stage1VAEConfig)
     label_prior: LabelPriorConfig = field(default_factory=LabelPriorConfig)
     dp: Optional[DPConfig] = None
 
@@ -69,6 +86,8 @@ class RectifiedFlowOTConfig:
     time_emb_dim: int = 64
     act: str = "silu"
     transport_steps: int = 50
+    mlp_norm: str = "none"
+    mlp_dropout: float = 0.0
 
 
 @dataclass
@@ -76,8 +95,15 @@ class Stage2Config:
     option: str = "B"
     pair_by_label: bool = False
     pair_by_ot: bool = False
+    pair_by_ot_method: str = "hungarian"
+    public_synth_steps: int = 1
+    public_pretrain_epochs: int = 0
     epochs: int = 30
     lr: float = 1e-3
+    optimizer: str = "adam"
+    weight_decay: float = 0.0
+    ema_decay: Optional[float] = None
+    loss_normalize_by_dim: bool = False
     hidden: List[int] = field(default_factory=lambda: [128, 128])
     act: str = "relu"
     add_strong_convexity: float = 0.1
@@ -92,6 +118,7 @@ class Stage2Config:
 
 @dataclass
 class Stage3Config:
+    classifier: str = "auto"  # auto | rf | mlp
     epochs: int = 30
     lr: float = 1e-3
     hidden: List[int] = field(default_factory=lambda: [128, 128])
@@ -106,6 +133,7 @@ class PrivacyCurveConfig:
     enabled: bool = False
     stage: str = "stage1"
     noise_multipliers: List[float] = field(default_factory=lambda: [0.5, 1.0, 2.0, 4.0])
+    noise_multipliers_stage2: Optional[List[float]] = None
     output_path: str = "privacy_utility.png"
     metric: str = "acc"
 
@@ -188,6 +216,12 @@ class ExperimentConfig:
 def _dp_from_dict(data: Optional[Dict[str, Any]]) -> Optional[DPConfig]:
     if not data:
         return None
+    target_epsilon = data.get("target_epsilon", None)
+    if target_epsilon is not None:
+        target_epsilon = float(target_epsilon)
+    max_physical_batch_size = data.get("max_physical_batch_size", None)
+    if max_physical_batch_size is not None:
+        max_physical_batch_size = int(max_physical_batch_size)
     return DPConfig(
         enabled=bool(data.get("enabled", True)),
         max_grad_norm=float(data.get("max_grad_norm", 1.0)),
@@ -195,6 +229,8 @@ def _dp_from_dict(data: Optional[Dict[str, Any]]) -> Optional[DPConfig]:
         delta=float(data.get("delta", 1e-5)),
         grad_sample_mode=data.get("grad_sample_mode", None),
         secure_mode=bool(data.get("secure_mode", False)),
+        target_epsilon=target_epsilon,
+        max_physical_batch_size=max_physical_batch_size,
     )
 
 
@@ -227,17 +263,39 @@ def load_config(path: str) -> ExperimentConfig:
     loaders_cfg = LoaderConfig(**(data.get("loaders", {}) or {}))
 
     stage1_raw = data.get("stage1", {}) or {}
+    stage1_ema_decay = stage1_raw.get("ema_decay", None)
+    if stage1_ema_decay is not None:
+        stage1_ema_decay = float(stage1_ema_decay)
+    stage1_vae_raw = stage1_raw.get("vae", {}) or {}
+    stage1_vae_cfg = Stage1VAEConfig(
+        latent_dim=int(stage1_vae_raw.get("latent_dim", 32)),
+        beta=float(stage1_vae_raw.get("beta", 1.0)),
+    )
     stage1_cfg = Stage1Config(
+        model=str(stage1_raw.get("model", "flow")),
         epochs=int(stage1_raw.get("epochs", 20)),
         lr=float(stage1_raw.get("lr", 1e-3)),
+        optimizer=str(stage1_raw.get("optimizer", "adam")),
+        weight_decay=float(stage1_raw.get("weight_decay", 0.0)),
+        ema_decay=stage1_ema_decay,
+        loss_normalize_by_dim=bool(stage1_raw.get("loss_normalize_by_dim", False)),
         hidden=list(stage1_raw.get("hidden", [128, 128])),
         time_emb_dim=int(stage1_raw.get("time_emb_dim", 32)),
         label_emb_dim=int(stage1_raw.get("label_emb_dim", 32)),
+        act=str(stage1_raw.get("act", "silu")),
+        mlp_norm=str(stage1_raw.get("mlp_norm", "none")),
+        mlp_dropout=float(stage1_raw.get("mlp_dropout", 0.0)),
+        cond_dim=int(stage1_raw.get("cond_dim", 0)),
+        cond_emb_dim=int(stage1_raw.get("cond_emb_dim", 0)),
+        vae=stage1_vae_cfg,
         label_prior=_label_prior_from_dict(stage1_raw.get("label_prior", {}) or {}),
         dp=_dp_from_dict(stage1_raw.get("dp", {}) or {}),
     )
 
     stage2_raw = data.get("stage2", {}) or {}
+    stage2_ema_decay = stage2_raw.get("ema_decay", None)
+    if stage2_ema_decay is not None:
+        stage2_ema_decay = float(stage2_ema_decay)
     conj_clamp = stage2_raw.get("conj_clamp", 10.0)
     if conj_clamp is not None:
         conj_clamp = float(conj_clamp)
@@ -274,13 +332,22 @@ def load_config(path: str) -> ExperimentConfig:
         time_emb_dim=int(rf_raw.get("time_emb_dim", 64)),
         act=str(rf_raw.get("act", "silu")),
         transport_steps=int(rf_raw.get("transport_steps", 50)),
+        mlp_norm=str(rf_raw.get("mlp_norm", "none")),
+        mlp_dropout=float(rf_raw.get("mlp_dropout", 0.0)),
     )
     stage2_cfg = Stage2Config(
         option=str(stage2_raw.get("option", "B")),
         pair_by_label=bool(stage2_raw.get("pair_by_label", False)),
         pair_by_ot=bool(stage2_raw.get("pair_by_ot", False)),
+        pair_by_ot_method=str(stage2_raw.get("pair_by_ot_method", "hungarian")),
+        public_synth_steps=int(stage2_raw.get("public_synth_steps", 1)),
+        public_pretrain_epochs=int(stage2_raw.get("public_pretrain_epochs", 0)),
         epochs=int(stage2_raw.get("epochs", 30)),
         lr=float(stage2_raw.get("lr", 1e-3)),
+        optimizer=str(stage2_raw.get("optimizer", "adam")),
+        weight_decay=float(stage2_raw.get("weight_decay", 0.0)),
+        ema_decay=stage2_ema_decay,
+        loss_normalize_by_dim=bool(stage2_raw.get("loss_normalize_by_dim", False)),
         hidden=list(stage2_raw.get("hidden", [128, 128])),
         act=str(stage2_raw.get("act", "relu")),
         add_strong_convexity=float(stage2_raw.get("add_strong_convexity", 0.1)),
@@ -301,6 +368,7 @@ def load_config(path: str) -> ExperimentConfig:
     if combined_synth_train_size is not None:
         combined_synth_train_size = int(combined_synth_train_size)
     stage3_cfg = Stage3Config(
+        classifier=str(stage3_raw.get("classifier", "auto")),
         epochs=int(stage3_raw.get("epochs", 30)),
         lr=float(stage3_raw.get("lr", 1e-3)),
         hidden=list(stage3_raw.get("hidden", [128, 128])),
@@ -311,10 +379,14 @@ def load_config(path: str) -> ExperimentConfig:
     )
 
     privacy_raw = data.get("privacy_curve", {}) or {}
+    noise_multipliers_stage2 = privacy_raw.get("noise_multipliers_stage2", None)
+    if noise_multipliers_stage2 is not None:
+        noise_multipliers_stage2 = list(noise_multipliers_stage2)
     privacy_cfg = PrivacyCurveConfig(
         enabled=bool(privacy_raw.get("enabled", False)),
         stage=str(privacy_raw.get("stage", "stage1")),
         noise_multipliers=list(privacy_raw.get("noise_multipliers", [0.5, 1.0, 2.0, 4.0])),
+        noise_multipliers_stage2=noise_multipliers_stage2,  # type: ignore[arg-type]
         output_path=str(privacy_raw.get("output_path", "privacy_utility.png")),
         metric=str(privacy_raw.get("metric", "acc")),
     )

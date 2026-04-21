@@ -1,0 +1,95 @@
+# Publication StateFate sweet spot (non-private).
+# Paper target table row: seed=0, n_ref=75, n_syn=500,
+# Ref-only=0.848, Synth-only=0.815, Ref+Synth=0.863, Delta=+0.015,
+# MMD_mean=0.0106.
+# Command:
+#   python run.py --config configs/publication/statefate_sweetspot_seed0.yaml
+
+seed: 0
+device: cpu
+
+data:
+  type: cellot_statefate_invitro_hvg
+  params:
+    # Download with:
+    #   python scripts/fetch_cellot_datasets.py --dataset statefate
+    path: datasets/scrna-statefate/invitro-hvg.h5ad
+    label_key: annotation
+    client_key: library
+    condition_key: condition
+    source_condition: control
+    target_condition: developed
+    split_mode: iid
+    holdout_client: null
+    max_clients: 5
+    min_cells_per_client: 1000
+    source_size_per_client: 2000
+    target_ref_size: 8000
+    target_test_size: 2000
+    pca_dim: 50
+    standardize: true
+    seed: 0
+
+loaders:
+  batch_size: 256
+  target_batch_size: 256
+  test_batch_size: 512
+  synth_batch_size: 512
+  drop_last: true
+
+stage1:
+  model: flow
+  epochs: 10
+  lr: 0.001
+  hidden: [256, 256]
+  time_emb_dim: 64
+  label_emb_dim: 32
+  label_prior:
+    enabled: true
+    mechanism: gaussian
+    sigma: 1.0
+  dp:
+    enabled: false
+
+stage2:
+  option: C
+  pair_by_label: true
+  pair_by_ot: false
+  epochs: 10
+  lr: 0.001
+  flow_steps: 30
+  dp:
+    enabled: false
+  rectified_flow:
+    enabled: true
+    hidden: [256, 256]
+    time_emb_dim: 64
+    act: silu
+    transport_steps: 30
+  cellot:
+    enabled: false
+
+stage3:
+  classifier: rf
+  epochs: 10
+  lr: 0.001
+  hidden: [256, 256]
+  flow_steps: 30
+  M_per_client: 2000
+  ref_train_size: 75
+  combined_synth_train_size: 500
+
+privacy_curve:
+  enabled: false
+
+membership_inference:
+  enabled: false
+
+shadow_mia:
+  enabled: false
+
+stage_mia:
+  enabled: false
+
+stage_shadow_mia:
+  enabled: false

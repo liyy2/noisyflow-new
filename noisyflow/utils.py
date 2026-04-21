@@ -18,6 +18,14 @@ def set_seed(seed: int) -> None:
 
 def cycle(loader: DataLoader) -> Iterator:
     """Infinite dataloader iterator."""
+    try:
+        if len(loader) == 0:
+            raise ValueError(
+                "DataLoader has zero batches. This often happens when drop_last=True and the dataset is smaller than batch_size."
+            )
+    except TypeError:
+        # Some iterable-style datasets/loaders do not implement __len__.
+        pass
     while True:
         for batch in loader:
             yield batch
@@ -52,6 +60,8 @@ class DPConfig:
     delta: float = 1e-5
     grad_sample_mode: Optional[str] = None
     secure_mode: bool = False
+    target_epsilon: Optional[float] = None
+    max_physical_batch_size: Optional[int] = None
 
 
 def dp_label_prior_from_counts(

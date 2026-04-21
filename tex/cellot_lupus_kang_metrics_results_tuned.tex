@@ -35,3 +35,50 @@ The tuned configuration corresponds to \texttt{configs/cellot\_lupus\_kang\_rect
 \end{table}
 
 With $n_{\text{ref}}=50$, synthetic data improves accuracy from 0.852 (Ref-only) to 0.905 (Ref+Synth).
+
+\section{Structure-preservation rebuttal}
+To test whether OT removes donor shift without erasing biological structure, we evaluate two additional
+metrics on a label-balanced subset of the held-out stimulated test cells and the synthetic samples.
+For each cell type, we sample the same number of target-test and synthetic cells, capped at 150 per
+domain and requiring at least 10 cells per label.
+We then report:
+(i) \textbf{label ASW}, the average silhouette width of the combined target and synthetic samples
+with respect to \texttt{cell\_type} labels, and
+(ii) \textbf{same-label domain mixing@15}, the fraction of opposite-domain neighbors among the
+15 nearest neighbors computed \emph{within each cell type} and averaged across labels.
+Higher values indicate better target/synthetic overlap for a fixed biological label.
+
+\paragraph{Auxiliary sanity check.}
+The analysis script also reports the mean per-cell-type centroid distance between synthetic samples
+and the held-out stimulated target cells in the PCA-50 feature space.
+This quantity is used as a secondary check that transport moves each cell type toward the target
+distribution, but it is not the primary rebuttal metric.
+
+\begin{figure}[t]
+  \centering
+  \IfFileExists{plots/kang_structure_preservation.pdf}{
+    \includegraphics[width=0.98\linewidth]{plots/kang_structure_preservation.pdf}
+  }{
+    \IfFileExists{../plots/kang_structure_preservation.pdf}{
+      \includegraphics[width=0.98\linewidth]{../plots/kang_structure_preservation.pdf}
+    }{}
+  }
+  \caption{
+    \textbf{Kang lupuspatients structure-preservation analysis.}
+    Left: per-cell-type centroids in the first two PCA coordinates for raw synthetic samples,
+    transported synthetic samples, and the held-out stimulated target test cells.
+    Arrows show the raw$\rightarrow$transported$\rightarrow$target movement for each cell type.
+    Right: label ASW and same-label domain mixing@15 over seeds.
+    Transport should increase target/synthetic mixing while keeping cell-type separation intact.
+  }
+  \label{fig:kang-structure-preservation}
+\end{figure}
+
+\paragraph{Reproducibility.}
+\begin{verbatim}
+python scripts/evaluate_cell_structure_preservation.py \
+  --config configs/cellot_lupus_kang_rectifiedflow_ref50_tuned.yaml \
+  --seeds 0,1,2 \
+  --output-json plots/kang_structure_preservation.json \
+  --plot-output plots/kang_structure_preservation.pdf
+\end{verbatim}

@@ -1,0 +1,90 @@
+# CAMELYON17 stage-level MIA non-DP config.
+# Target ROC in plots/paper.tex: non-DP NoisyFlow AUC 0.891.
+# Command: python scripts/plot_stage_mia_roc.py --nodp-config configs/publication/camelyon17_mia_nodp.yaml --dp-config configs/publication/camelyon17_mia_dp.yaml --output plots/camelyon17_stage_mia_roc_tuned.pdf
+
+seed: 0
+device: cuda
+
+data:
+  type: camelyon17
+  params:
+    path: datasets/camelyon17_wilds/camelyon17_resnet18_all_splits.npz
+    source_hospitals: [0, 3]
+    target_hospitals: [1, 2, 4]
+    source_splits: [train, id_val]
+    target_splits: [train, id_val, val, test]
+    n_per_client: 200
+    target_ref_size: 500
+    target_test_size: 2000
+    standardize: true
+    pca_dim: 128
+    seed: 0
+
+loaders:
+  batch_size: 32
+  target_batch_size: 256
+  test_batch_size: 512
+  synth_batch_size: 512
+  drop_last: false
+
+stage1:
+  epochs: 600
+  lr: 0.001
+  hidden: [256, 256]
+  time_emb_dim: 64
+  label_emb_dim: 32
+  label_prior:
+    enabled: false
+  dp:
+    enabled: false
+
+stage2:
+  option: B
+  pair_by_label: true
+  pair_by_ot: false
+  epochs: 200
+  lr: 0.001
+  flow_steps: 50
+  dp:
+    enabled: false
+  rectified_flow:
+    enabled: true
+    hidden: [256, 256]
+    time_emb_dim: 64
+    act: silu
+    transport_steps: 50
+  cellot:
+    enabled: false
+
+stage3:
+  epochs: 1
+  lr: 0.001
+  hidden: [128, 128]
+  flow_steps: 50
+  M_per_client: 1000
+  combined_synth_train_size: 500
+
+privacy_curve:
+  enabled: false
+
+membership_inference:
+  enabled: false
+
+shadow_mia:
+  enabled: false
+
+stage_mia:
+  enabled: true
+  holdout_fraction: 0.5
+  num_flow_samples: 10
+  include_ot_transport_norm: false
+  attack_train_frac: 0.5
+  attack_hidden: [64, 32]
+  attack_epochs: 30
+  attack_lr: 0.001
+  attack_batch_size: 256
+  max_samples: null
+  seed: 0
+
+stage_shadow_mia:
+  enabled: false

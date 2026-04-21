@@ -78,6 +78,42 @@ def _roc_auc(scores: np.ndarray, labels: np.ndarray) -> float:
     return float(auc)
 
 
+def _roc_curve(scores: np.ndarray, labels: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Compute ROC curve points for binary labels with higher scores = positive.
+
+    Returns (fpr, tpr, thresholds) where thresholds are descending score cutoffs.
+    """
+    scores = np.asarray(scores, dtype=np.float64)
+    labels = np.asarray(labels, dtype=np.int64)
+
+    n_pos = int(labels.sum())
+    n_neg = int((labels == 0).sum())
+    if n_pos == 0 or n_neg == 0:
+        nan = np.array([float("nan")], dtype=np.float64)
+        return nan, nan, nan
+
+    order = np.argsort(-scores, kind="mergesort")
+    scores_sorted = scores[order]
+    labels_sorted = labels[order]
+
+    tps = np.cumsum(labels_sorted == 1)
+    fps = np.cumsum(labels_sorted == 0)
+
+    distinct = np.where(np.diff(scores_sorted) != 0)[0]
+    thresh_idx = np.r_[distinct, labels_sorted.size - 1]
+
+    tpr = tps[thresh_idx] / float(n_pos)
+    fpr = fps[thresh_idx] / float(n_neg)
+    thresholds = scores_sorted[thresh_idx]
+
+    # Include the origin (0,0) with an infinite threshold.
+    tpr = np.r_[0.0, tpr]
+    fpr = np.r_[0.0, fpr]
+    thresholds = np.r_[np.inf, thresholds]
+    return fpr.astype(np.float64), tpr.astype(np.float64), thresholds.astype(np.float64)
+
+
 def loss_threshold_attack(
     train_losses: torch.Tensor,
     test_losses: torch.Tensor,
@@ -522,8 +558,9 @@ def run_stage_mia_attack(
     attack_train_frac: float = 0.5,
     max_samples: Optional[int] = None,
     seed: int = 0,
+    return_curve: bool = False,
     device: str = "cpu",
-) -> Dict[str, float]:
+) -> Dict[str, Any]:
     member_features, nonmember_features = _balanced_feature_sample(
         member_features, nonmember_features, max_samples=max_samples, seed=seed
     )
@@ -577,8 +614,13 @@ def run_stage_mia_attack(
     with torch.no_grad():
         scores = attack_model(attack_x_eval.to(device)).detach().cpu().numpy()
 
-    metrics = _attack_metrics(scores, attack_y_eval, prefix="stage_mia_attack")
+    metrics: Dict[str, Any] = _attack_metrics(scores, attack_y_eval, prefix="stage_mia_attack")
     metrics["stage_mia_train_frac"] = float(attack_train_frac)
+    if return_curve:
+        fpr, tpr, thresholds = _roc_curve(scores, attack_y_eval)
+        metrics["stage_mia_attack_fpr"] = fpr.tolist()
+        metrics["stage_mia_attack_tpr"] = tpr.tolist()
+        metrics["stage_mia_attack_thresholds"] = thresholds.tolist()
     return metrics
 
 

@@ -1,0 +1,91 @@
+# PAMAP2 raw/no-transport row reproduction.
+# Target paper row: raw synthetic/no-transport accuracy ~= 0.515 with 200 synthetic windows.
+# Verified by tuning Stage I generator strength:
+#   results/publication_repro/pamap2_raw_no_transport_syn200.json
+#   raw/no-transport acc=0.510, transported-only acc=0.5625.
+#
+# Important: this config is for the raw/no-transport diagnostic row only.
+# It does not reproduce the transported-only 0.945 row; that requires the
+# fully trained PAMAP2 config (configs/publication/pamap2_table_seed0.yaml).
+#
+# Run:
+#   conda run -n edm python scripts/run_config_to_json.py --config configs/publication/pamap2_raw_no_transport_syn200.yaml --out results/publication_repro/pamap2_raw_no_transport_syn200.json --device cpu
+
+seed: 0
+device: cpu
+
+data:
+  type: pamap2
+  params:
+    path: datasets/pamap2/pamap2_protocol_windows_11act.npz
+    target_subject: 107
+    source_subjects: [101, 102, 105, 106, 108]
+    n_per_client: null
+    target_ref_size: 400
+    target_test_size: 400
+    standardize: true
+    pca_dim: null
+    seed: 0
+
+loaders:
+  batch_size: 128
+  target_batch_size: 128
+  test_batch_size: 512
+  synth_batch_size: 512
+  drop_last: true
+
+stage1:
+  # Undertrain the generator intentionally to reproduce the weak raw/no-transport row.
+  epochs: 3
+  lr: 0.001
+  hidden: [256, 256, 256]
+  time_emb_dim: 64
+  label_emb_dim: 64
+  label_prior:
+    enabled: false
+  dp:
+    enabled: false
+
+stage2:
+  option: A
+  pair_by_label: true
+  pair_by_ot: false
+  epochs: 40
+  lr: 0.001
+  flow_steps: 50
+  dp:
+    enabled: false
+  cellot:
+    enabled: false
+  rectified_flow:
+    enabled: true
+    hidden: [256, 256]
+    time_emb_dim: 64
+    act: silu
+    transport_steps: 50
+
+stage3:
+  classifier: rf
+  epochs: 50
+  lr: 0.001
+  hidden: [256, 256]
+  flow_steps: 30
+  # 5 source clients x 40 samples = 200 synthetic windows.
+  M_per_client: 40
+  ref_train_size: 20
+  combined_synth_train_size: 200
+
+privacy_curve:
+  enabled: false
+
+membership_inference:
+  enabled: false
+
+shadow_mia:
+  enabled: false
+
+stage_mia:
+  enabled: false
+
+stage_shadow_mia:
+  enabled: false

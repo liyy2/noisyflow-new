@@ -1,0 +1,49 @@
+# Publication manifest for plots/paper.tex, Computational Efficiency table.
+# The benchmark script currently takes CLI flags rather than loading YAML.
+# Run:
+#   conda run -n edm python scripts/benchmark_inference_ot.py --device cuda --dims 512 1024 2048 4096 --n 500 --flow-steps 50 --sinkhorn-epsilon 1.0 --sinkhorn-iters 200 --warmup 5 --repeats 10 --seed 0 --flow-hidden 256 256 --ot-hidden 128 128
+script: scripts/benchmark_inference_ot.py
+device: cuda
+seed: 0
+
+hardware:
+  paper_gpu: NVIDIA RTX 5090
+
+benchmark:
+  n: 500
+  dims: [512, 1024, 2048, 4096]
+  dtype: float32
+  flow_steps: 50
+  flow_hidden: [256, 256]
+  ot_hidden: [128, 128]
+  sinkhorn_epsilon: 1.0
+  sinkhorn_iters: 200
+  warmup: 5
+  repeats: 10
+
+paper_targets:
+  # Times are milliseconds for transporting n=500 samples on one RTX 5090.
+  - d: 512
+    sample_ms: 8.67
+    transport_icnn_ms: 0.77
+    transport_sinkhorn_ms: 11.97
+    speedup_transport: 15.5
+    speedup_total: 2.19
+  - d: 1024
+    sample_ms: 8.32
+    transport_icnn_ms: 0.89
+    transport_sinkhorn_ms: 11.46
+    speedup_transport: 12.9
+    speedup_total: 2.15
+  - d: 2048
+    sample_ms: 13.85
+    transport_icnn_ms: 0.73
+    transport_sinkhorn_ms: 11.88
+    speedup_transport: 16.2
+    speedup_total: 1.76
+  - d: 4096
+    sample_ms: 9.33
+    transport_icnn_ms: 0.91
+    transport_sinkhorn_ms: 11.87
+    speedup_transport: 13.0
+    speedup_total: 2.07

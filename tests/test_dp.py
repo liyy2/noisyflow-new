@@ -5,8 +5,8 @@ import unittest
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from noisyflow.stage1.networks import VelocityField
-from noisyflow.stage1.training import train_flow_stage1
+from noisyflow.stage1.networks import ConditionalVAE, VelocityField
+from noisyflow.stage1.training import train_flow_stage1, train_vae_stage1
 from noisyflow.stage2.networks import CellOTICNN, RectifiedFlowOT
 from noisyflow.stage2.training import train_ot_stage2_cellot, train_ot_stage2_rectified_flow
 from noisyflow.utils import DPConfig
@@ -29,6 +29,19 @@ class DPTests(unittest.TestCase):
 
         self.assertIn("epsilon_flow", stats)
         self.assertGreater(stats["epsilon_flow"], 0.0)
+
+    def test_stage1_vae_dp_training_reports_epsilon(self):
+        torch.manual_seed(0)
+        x = torch.randn(20, 3)
+        y = torch.randint(0, 2, (20,))
+        loader = DataLoader(TensorDataset(x, y), batch_size=5, shuffle=True, drop_last=True)
+
+        model = ConditionalVAE(d=3, num_classes=2, hidden=[8], latent_dim=4, label_emb_dim=8)
+        dp = DPConfig(enabled=True, max_grad_norm=1.0, noise_multiplier=1.0, delta=1e-5)
+        stats = train_vae_stage1(model, loader, epochs=1, lr=1e-3, dp=dp, device="cpu")
+
+        self.assertIn("epsilon_stage1", stats)
+        self.assertGreater(stats["epsilon_stage1"], 0.0)
 
     def test_stage2_dp_with_opacus_step_by_step(self):
         """Step-by-step: build loaders, init models, run DP training, assert DP stats."""

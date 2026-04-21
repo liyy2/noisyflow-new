@@ -1,0 +1,95 @@
+# PBMC/Kang Fig. privacy_curve, Stage II Option C mixed private+synthetic.
+# Target points: eps:acc ~= 12.67:0.770, 29.68:0.865, 75.27:0.887, 211.78:0.888.
+# Command: python run.py --config configs/publication/pbmc_kang_privacy_curve_option_c_mixed.yaml
+# Overlay command after all three curves: python scripts/plot_privacy_curve_stage2_schemes.py --syn plots/publication/pbmc_kang_privacy_curve_option_b_synthetic.json --mixed plots/publication/pbmc_kang_privacy_curve_option_c_mixed.json --private plots/publication/pbmc_kang_privacy_curve_option_a_private.json --output plots/publication/pbmc_kang_privacy_curve_stage2_schemes_overlay.pdf
+seed: 0
+device: cpu
+
+data:
+  type: cellot_lupuspatients_kang_hvg
+  params:
+    path: datasets/scrna-lupuspatients/kang-hvg.h5ad
+    holdout_client: 101
+    split_mode: ood
+
+    max_clients: 7
+    min_cells_per_client: 400
+
+    target_ref_size: null
+    target_test_size: null
+
+    pca_dim: 50
+    standardize: false
+
+    seed: 0
+
+loaders:
+  batch_size: 256
+  target_batch_size: 256
+  test_batch_size: 512
+  synth_batch_size: 512
+  drop_last: true
+
+stage1:
+  epochs: 30
+  lr: 0.001
+  hidden: [256, 256]
+  time_emb_dim: 64
+  label_emb_dim: 32
+  label_prior:
+    enabled: false
+  dp:
+    enabled: true
+    max_grad_norm: 1.0
+    noise_multiplier: 1.0
+    delta: 1e-5
+    grad_sample_mode: functorch
+
+stage2:
+  # Mixed scheme: private source plus DP synthetic source, trained with DP-SGD.
+  option: C
+  pair_by_label: true
+  epochs: 30
+  lr: 0.001
+  flow_steps: 30
+  dp:
+    enabled: true
+    max_grad_norm: 1.0
+    noise_multiplier: 1.0
+    delta: 1e-5
+    grad_sample_mode: functorch
+  rectified_flow:
+    enabled: true
+    hidden: [256, 256]
+    time_emb_dim: 64
+    act: silu
+    transport_steps: 25
+  cellot:
+    enabled: false
+
+stage3:
+  epochs: 10
+  lr: 0.001
+  hidden: [256, 256]
+  flow_steps: 30
+  M_per_client: 5000
+  ref_train_size: 50
+
+privacy_curve:
+  enabled: true
+  stage: both
+  metric: acc_ref_plus_synth
+  noise_multipliers: [0.5, 1.0, 2.0, 4.0]
+  output_path: plots/publication/pbmc_kang_privacy_curve_option_c_mixed.pdf
+
+membership_inference:
+  enabled: false
+
+shadow_mia:
+  enabled: false
+
+stage_mia:
+  enabled: false
+
+stage_shadow_mia:
+  enabled: false
