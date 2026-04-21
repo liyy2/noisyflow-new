@@ -8,7 +8,7 @@
   </a>
 </p>
 <p align="center">
-  <em>Main NoisyFlow schematic. Click the image to open the full-resolution PDF.</em>
+  <em>Figure 1. NoisyFlow pipeline. Clients train DP-enabled flow-matching generators locally. Stage 2 learns ICNN- or flow-matching-based transports that align source domains with the target domain. The server synthesizes target-like data for downstream classifier training and evaluation.</em>
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
   </a>
 </p>
 <p align="center">
-  <em>Additional schematic. Click the image to open the full-resolution PDF.</em>
+  <em>Figure 2. Expanded training and evaluation workflow, including client-side generator training, transport fitting, server-side synthesis, and downstream utility/privacy evaluation.</em>
 </p>
 
 Start here:

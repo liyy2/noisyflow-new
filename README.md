@@ -1,4 +1,4 @@
-# NoisyFlow: Federated Synthetic Data Generation with Private Flow Matching
+# NoisyFlow: Privacy-Preserving Federated Synthetic Data Generation
 
 [Main schematic](assets/Noisyflow-Mar24th-schematics-updated.pdf) • [Additional schematic](assets/schematics.pdf) • [Documentation](docs/README.md) • [Quick start](#quick-start) • [Citation](#citation)
 
@@ -7,9 +7,9 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-required-red)](#requirements)
 [![Differential Privacy](https://img.shields.io/badge/Differential%20Privacy-Opacus-6f42c1)](#configuration-guide)
 
-NoisyFlow is a three-stage framework for federated synthetic data generation with optional differential privacy. It trains client-side flow-matching generators, transports source-domain samples toward a target domain, and synthesizes target-like data for downstream classification.
+NoisyFlow is a three-stage framework for privacy-preserving federated synthetic data generation. It trains client-side flow-matching generators, learns transport maps from source domains to a target domain, and synthesizes target-like samples for downstream classification.
 
-The method is designed for privacy-aware domain adaptation: synthetic data can be used alone or combined with limited target labels to improve target-domain utility while controlling the privacy cost of client-side training and transport.
+The method targets domain adaptation under data-sharing constraints. Synthetic samples can be used alone or combined with limited target labels, while differential privacy mechanisms control the privacy cost of client-side generator and transport training.
 
 This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlow.
 
@@ -21,7 +21,7 @@ This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlo
   </a>
 </p>
 <p align="center">
-  <em>Main NoisyFlow schematic. Click the image to open the full-resolution PDF.</em>
+  <em>Figure 1. NoisyFlow pipeline. Clients train DP-enabled flow-matching generators locally. Stage 2 learns ICNN- or flow-matching-based transports that align source domains with the target domain. The server synthesizes target-like data for downstream classifier training and evaluation.</em>
 </p>
 
 <p align="center">
@@ -30,23 +30,23 @@ This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlo
   </a>
 </p>
 <p align="center">
-  <em>Additional schematic. Click the image to open the full-resolution PDF.</em>
+  <em>Figure 2. Expanded training and evaluation workflow, including client-side generator training, transport fitting, server-side synthesis, and downstream utility/privacy evaluation.</em>
 </p>
 
 ## Repository Contents
 
 | Path | Purpose |
 |---|---|
-| `noisyflow/` | Core package: configuration, metrics, utilities, data builders, attacks, and stage implementations. |
-| `noisyflow/stage1/` | Client-side flow-matching generators with optional DP-SGD. |
+| `noisyflow/` | Core package for configuration, metrics, utilities, data builders, attacks, and stage implementations. |
+| `noisyflow/stage1/` | Client-side flow-matching generators with DP-SGD support. |
 | `noisyflow/stage2/` | Transport modules, including ICNN-based transport and flow-matching transport variants. |
 | `noisyflow/stage3/` | Server-side synthesis and downstream classifier training. |
 | `noisyflow/baselines/` | Baselines for domain adaptation, federated classification, and noise-then-transport comparisons. |
-| `configs/publication/` | Publication experiment YAML files. |
+| `configs/publication/` | YAML files for publication experiments. |
 | `scripts/` | Data preparation, experiment, plotting, sweep, and benchmarking utilities. |
 | `tests/` | Unit tests for configuration, data, metrics, DP, training, and baselines. |
 | `docs/` | Detailed documentation for architecture, configuration, data, experiments, and attacks. |
-| `assets/` | README and paper schematics. |
+| `assets/` | Schematics and rendered README figures. |
 | `run.py` | Main experiment entrypoint. |
 
 ## Contents
@@ -56,7 +56,7 @@ This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlo
 - [Quick start](#quick-start)
 - [Pipeline](#pipeline)
 - [Configuration guide](#configuration-guide)
-- [Common workflows](#common-workflows)
+- [Reproducible workflows](#reproducible-workflows)
 - [Documentation](#documentation)
 - [Tests](#tests)
 - [Citation](#citation)
@@ -69,7 +69,7 @@ This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlo
 | Python | 3.10+ recommended. |
 | PyTorch | Required for all training and inference paths. |
 | PyYAML | Required for YAML configuration files. |
-| Opacus | Optional; required for DP-SGD in Stage 1 and Stage 2. |
+| Opacus | Required dependency; used for DP-SGD in Stage 1 and Stage 2 experiments. |
 | Matplotlib | Optional; required for privacy-utility plots. |
 | scikit-learn | Optional; required for PCA, standardization, and RandomForest baselines. |
 
@@ -83,15 +83,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Optional dataset-specific dependencies are listed in `requirements.txt`. For example, CAMELYON17-WILDS preparation uses `wilds` and `torchvision`, and the BrainSCOPE preparation script uses `pandas`.
+Dataset-specific extras are documented as commented entries in `requirements.txt`. CAMELYON17-WILDS preparation uses `wilds` and `torchvision`; the BrainSCOPE preparation script uses `pandas`.
 
 ## Quick Start
 
 | Phase | Goal | Output |
 |---|---|---|
 | A) Configure | Select a YAML file and set device/data paths. | Ready-to-run experiment config. |
-| B) Run | Launch the NoisyFlow pipeline with `run.py`. | Training logs, synthetic samples, and metrics. |
-| C) Evaluate | Run privacy-utility sweeps, baselines, or MIA scripts. | Tables, JSON metrics, and plots. |
+| B) Run | Launch the pipeline with `run.py`. | Training logs, synthetic samples, and metrics. |
+| C) Evaluate | Run privacy-utility sweeps, baselines, or membership inference attacks. | Tables, JSON metrics, and plots. |
 
 Run the default experiment:
 
@@ -99,15 +99,15 @@ Run the default experiment:
 python run.py --config configs/default.yaml
 ```
 
-Run a small smoke test:
+Run a compact smoke test:
 
 ```bash
 python run.py --config configs/quick_smoke.yaml
 ```
 
-`configs/quick_smoke.yaml` uses `device: cuda` by default. Set `device: cpu` in the YAML file if CUDA is unavailable.
+`configs/quick_smoke.yaml` uses `device: cuda` by default. Set `device: cpu` in the YAML file when CUDA is unavailable.
 
-Run the standalone toy demo:
+Run the minimal toy example:
 
 ```bash
 python noisyflow_sketch.py
@@ -117,22 +117,22 @@ python noisyflow_sketch.py
 
 NoisyFlow is organized into three stages.
 
-1. **Stage 1: private client generators.** Each client trains a flow-matching generator on local data. Training can use standard SGD/Adam or DP-SGD through Opacus.
+1. **Stage 1: private client generators.** Each client trains a flow-matching generator on local data. Training supports both non-private optimization and DP-SGD through Opacus.
 2. **Stage 2: target-domain transport.** The pipeline learns source-to-target transport with ICNN-based optimal transport, CellOT-style training, or flow-matching transport variants.
 3. **Stage 3: synthesis and classification.** The server samples synthetic target-like data and trains downstream classifiers using synthetic data, limited target labels, or both.
 
-The code also supports privacy-utility sweeps and membership inference attack evaluations.
+The repository also provides privacy-utility sweeps and membership inference attack evaluations.
 
 ## Configuration Guide
 
-Experiment settings are YAML files loaded by `run.py`.
+Experiments are specified by YAML files and executed by `run.py`.
 
 | Config block | Purpose |
 |---|---|
 | `seed`, `device` | Reproducibility and CPU/GPU selection. |
 | `data` | Dataset type, preprocessing, target/source split, and dataset-specific parameters. |
-| `stage1` | Flow-matching generator architecture, optimization, and optional DP-SGD settings. |
-| `stage2` | Transport option, ICNN/CellOT/flow-matching settings, and optional DP settings. |
+| `stage1` | Flow-matching generator architecture, optimization, and DP-SGD settings. |
+| `stage2` | Transport option, ICNN/CellOT/flow-matching settings, and DP settings. |
 | `stage3` | Number of synthetic samples per client and downstream classifier configuration. |
 | `privacy_curve` | Privacy-utility sweep settings. |
 
@@ -144,9 +144,9 @@ Supported `data.type` values include:
 
 Publication configurations live in `configs/publication/`.
 
-## Common Workflows
+## Reproducible Workflows
 
-Fetch CellOT preprocessed datasets:
+Fetch preprocessed CellOT datasets:
 
 ```bash
 python scripts/fetch_cellot_datasets.py --dataset lupuspatients
@@ -194,7 +194,7 @@ Run the unit test suite:
 python -m unittest discover -s tests
 ```
 
-Tests that require optional packages such as PyYAML, Opacus, Matplotlib, or scikit-learn are skipped when those packages are not installed.
+Tests that require plotting, dataset-specific, or baseline-only dependencies are skipped when those packages are not installed.
 
 ## Citation
 
