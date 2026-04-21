@@ -1,6 +1,6 @@
 # NoisyFlow: Privacy-Preserving Federated Synthetic Data Generation
 
-[Main schematic](assets/Noisyflow-Mar24th-schematics-updated.pdf) • [Additional schematic](assets/schematics.pdf) • [Documentation](docs/README.md) • [Quick start](#quick-start) • [Citation](#citation)
+[Main schematic](assets/Noisyflow-Mar24th-schematics-updated.pdf) • [Additional schematic](assets/schematics.pdf) • [Documentation](docs/README.md) • [Citation](#citation)
 
 [![ISMB 2026 / Bioinformatics](https://img.shields.io/badge/ISMB%202026-Bioinformatics-1f6feb)](#citation)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-informational)](#requirements)
@@ -53,7 +53,6 @@ This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlo
 
 - [Requirements](#requirements)
 - [Installation](#installation)
-- [Quick start](#quick-start)
 - [Pipeline](#pipeline)
 - [Configuration guide](#configuration-guide)
 - [Reproducible workflows](#reproducible-workflows)
@@ -84,34 +83,6 @@ pip install -r requirements.txt
 ```
 
 Dataset-specific extras are documented as commented entries in `requirements.txt`. CAMELYON17-WILDS preparation uses `wilds` and `torchvision`; the BrainSCOPE preparation script uses `pandas`.
-
-## Quick Start
-
-| Phase | Goal | Output |
-|---|---|---|
-| A) Configure | Select a YAML file and set device/data paths. | Ready-to-run experiment config. |
-| B) Run | Launch the pipeline with `run.py`. | Training logs, synthetic samples, and metrics. |
-| C) Evaluate | Run privacy-utility sweeps, baselines, or membership inference attacks. | Tables, JSON metrics, and plots. |
-
-Run the default experiment:
-
-```bash
-python run.py --config configs/default.yaml
-```
-
-Run a compact smoke test:
-
-```bash
-python run.py --config configs/quick_smoke.yaml
-```
-
-`configs/quick_smoke.yaml` uses `device: cuda` by default. Set `device: cpu` in the YAML file when CUDA is unavailable.
-
-Run the minimal toy example:
-
-```bash
-python noisyflow_sketch.py
-```
 
 ## Pipeline
 
