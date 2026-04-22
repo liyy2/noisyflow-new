@@ -9,9 +9,7 @@
 
 NoisyFlow studies a federated domain adaptation setting in which source clients, such as patients, subjects, cohorts, or hospitals, hold private labeled source-domain data. The target domain provides a labeled target-reference split and a held-out target-test split. The goal is to train accurate target-domain classifiers without centralizing the private source data.
 
-The method follows the paper's three-stage protocol. Each source client trains a label-conditional flow-matching generator on its private samples. Each client then learns a transport map from its source distribution to the target-reference distribution using ICNN/CellOT or flow-matching transport. The server samples from the client generators, applies the learned transports, and evaluates classifiers trained on transported synthetic samples (`Synth-only`), labeled target-reference data (`Ref-only`), or their union (`Ref+Synth`). Differential privacy is implemented with Opacus DP-SGD and reported through privacy-utility tradeoffs.
-
-This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlow.
+NoisyFlow uses a three-stage pipeline for private federated synthesis and target-domain evaluation. Each source client trains a label-conditional flow-matching generator on its private samples. Each client then learns a transport map from its source distribution to the target-reference distribution using ICNN/CellOT or flow-matching transport. The server samples from the client generators, applies the learned transports, and evaluates classifiers trained on transported synthetic samples (`Synth-only`), labeled target-reference data (`Ref-only`), or their union (`Ref+Synth`). Differential privacy is implemented with Opacus DP-SGD and reported through privacy-utility tradeoffs.
 
 ## Method Overview
 
@@ -86,7 +84,7 @@ Dataset-specific extras are documented as commented entries in `requirements.txt
 
 ## Pipeline
 
-NoisyFlow follows the three-stage protocol used in the paper.
+NoisyFlow is organized into three stages.
 
 1. **Stage 1: per-client conditional generation.** Each source client trains a label-conditional flow-matching generator on private source-domain samples. Training supports both non-private optimization and DP-SGD through Opacus.
 2. **Stage 2: transport to target reference.** Each client learns a map from its source distribution to the target-reference distribution. The implementation supports ICNN-based optimal transport, CellOT-style training, and flow-matching transport variants.
