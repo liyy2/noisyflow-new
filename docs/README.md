@@ -8,7 +8,7 @@
   </a>
 </p>
 <p align="center">
-  <em>Figure 1. NoisyFlow pipeline. Clients train DP-enabled flow-matching generators locally. Stage 2 learns ICNN- or flow-matching-based transports that align source domains with the target domain. The server synthesizes target-like data for downstream classifier training and evaluation.</em>
+  <em>Figure 1. NoisyFlow protocol for federated domain adaptation. Each source client trains a label-conditional flow-matching generator on private data. Stage 2 learns a transport map into the target-reference distribution using ICNN/CellOT or flow-matching transport. The server samples from the client generators, applies the learned transports, and trains target-domain classifiers with transported synthetic labels and limited target-reference labels.</em>
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
   </a>
 </p>
 <p align="center">
-  <em>Figure 2. Expanded training and evaluation workflow, including client-side generator training, transport fitting, server-side synthesis, and downstream utility/privacy evaluation.</em>
+  <em>Figure 2. Expanded experimental workflow. The benchmark protocol reports Ref-only, Synth-only, and Ref+Synth classifiers, evaluates target-test accuracy and distributional alignment, and summarizes privacy-utility tradeoffs under DP-SGD.</em>
 </p>
 
 Start here:

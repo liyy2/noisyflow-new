@@ -1,4 +1,4 @@
-# NoisyFlow: Privacy-Preserving Federated Synthetic Data Generation
+# NoisyFlow: Privacy-Preserving Federated Domain Adaptation with Synthetic Data
 
 [Main schematic](assets/Noisyflow-Mar24th-schematics-updated.pdf) • [Additional schematic](assets/schematics.pdf) • [Documentation](docs/README.md) • [Citation](#citation)
 
@@ -7,9 +7,9 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-required-red)](#requirements)
 [![Differential Privacy](https://img.shields.io/badge/Differential%20Privacy-Opacus-6f42c1)](#configuration-guide)
 
-NoisyFlow is a three-stage framework for privacy-preserving federated synthetic data generation. It trains client-side flow-matching generators, learns transport maps from source domains to a target domain, and synthesizes target-like samples for downstream classification.
+NoisyFlow studies a federated domain adaptation setting in which source clients, such as patients, subjects, cohorts, or hospitals, hold private labeled source-domain data. The target domain provides a labeled target-reference split and a held-out target-test split. The goal is to train accurate target-domain classifiers without centralizing the private source data.
 
-The method targets domain adaptation under data-sharing constraints. Synthetic samples can be used alone or combined with limited target labels, while differential privacy mechanisms control the privacy cost of client-side generator and transport training.
+The method follows the paper's three-stage protocol. Each source client trains a label-conditional flow-matching generator on its private samples. Each client then learns a transport map from its source distribution to the target-reference distribution using ICNN/CellOT or flow-matching transport. The server samples from the client generators, applies the learned transports, and evaluates classifiers trained on transported synthetic samples (`Synth-only`), labeled target-reference data (`Ref-only`), or their union (`Ref+Synth`). Differential privacy is implemented with Opacus DP-SGD and reported through privacy-utility tradeoffs.
 
 This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlow.
 
@@ -21,7 +21,7 @@ This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlo
   </a>
 </p>
 <p align="center">
-  <em>Figure 1. NoisyFlow pipeline. Clients train DP-enabled flow-matching generators locally. Stage 2 learns ICNN- or flow-matching-based transports that align source domains with the target domain. The server synthesizes target-like data for downstream classifier training and evaluation.</em>
+  <em>Figure 1. NoisyFlow protocol for federated domain adaptation. Source clients train label-conditional generators on private data, learn transports into the target-reference distribution, and send only the components needed for server-side synthesis. The server trains target-domain classifiers with transported synthetic labels, target-reference labels, or their union.</em>
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@ This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlo
   </a>
 </p>
 <p align="center">
-  <em>Figure 2. Expanded training and evaluation workflow, including client-side generator training, transport fitting, server-side synthesis, and downstream utility/privacy evaluation.</em>
+  <em>Figure 2. Expanded experimental workflow. The paper reports Ref-only, Synth-only, and Ref+Synth target-test performance, distributional alignment between transported synthetic samples and target data, and privacy-utility tradeoffs under DP-SGD.</em>
 </p>
 
 ## Repository Contents
@@ -39,9 +39,9 @@ This repository accompanies the ISMB 2026 / *Bioinformatics* version of NoisyFlo
 |---|---|
 | `noisyflow/` | Core package for configuration, metrics, utilities, data builders, attacks, and stage implementations. |
 | `noisyflow/stage1/` | Client-side flow-matching generators with DP-SGD support. |
-| `noisyflow/stage2/` | Transport modules, including ICNN-based transport and flow-matching transport variants. |
+| `noisyflow/stage2/` | Target-reference transport modules, including ICNN/CellOT and flow-matching transport variants. |
 | `noisyflow/stage3/` | Server-side synthesis and downstream classifier training. |
-| `noisyflow/baselines/` | Baselines for domain adaptation, federated classification, and noise-then-transport comparisons. |
+| `noisyflow/baselines/` | Baselines for domain adaptation, federated predictor training, and noise-then-transport comparisons. |
 | `configs/publication/` | YAML files for publication experiments. |
 | `scripts/` | Data preparation, experiment, plotting, sweep, and benchmarking utilities. |
 | `tests/` | Unit tests for configuration, data, metrics, DP, training, and baselines. |
@@ -86,13 +86,13 @@ Dataset-specific extras are documented as commented entries in `requirements.txt
 
 ## Pipeline
 
-NoisyFlow is organized into three stages.
+NoisyFlow follows the three-stage protocol used in the paper.
 
-1. **Stage 1: private client generators.** Each client trains a flow-matching generator on local data. Training supports both non-private optimization and DP-SGD through Opacus.
-2. **Stage 2: target-domain transport.** The pipeline learns source-to-target transport with ICNN-based optimal transport, CellOT-style training, or flow-matching transport variants.
-3. **Stage 3: synthesis and classification.** The server samples synthetic target-like data and trains downstream classifiers using synthetic data, limited target labels, or both.
+1. **Stage 1: per-client conditional generation.** Each source client trains a label-conditional flow-matching generator on private source-domain samples. Training supports both non-private optimization and DP-SGD through Opacus.
+2. **Stage 2: transport to target reference.** Each client learns a map from its source distribution to the target-reference distribution. The implementation supports ICNN-based optimal transport, CellOT-style training, and flow-matching transport variants.
+3. **Stage 3: synthesis and target evaluation.** The server samples from the client generators, pushes samples through the learned transports, and trains target-domain classifiers under the paper's `Synth-only`, `Ref-only`, and `Ref+Synth` protocols.
 
-The repository also provides privacy-utility sweeps and membership inference attack evaluations.
+Experiments evaluate target-test accuracy, macro-F1 when applicable, distributional alignment metrics such as SW2 or MMD, and privacy-utility curves. Privacy budgets are reported per client and summarized by the maximum epsilon at the configured delta.
 
 ## Configuration Guide
 
@@ -101,9 +101,9 @@ Experiments are specified by YAML files and executed by `run.py`.
 | Config block | Purpose |
 |---|---|
 | `seed`, `device` | Reproducibility and CPU/GPU selection. |
-| `data` | Dataset type, preprocessing, target/source split, and dataset-specific parameters. |
+| `data` | Dataset type, preprocessing, source-client split, target-reference split, and target-test split. |
 | `stage1` | Flow-matching generator architecture, optimization, and DP-SGD settings. |
-| `stage2` | Transport option, ICNN/CellOT/flow-matching settings, and DP settings. |
+| `stage2` | Transport option, ICNN/CellOT/flow-matching settings, target pairing, and DP settings. |
 | `stage3` | Number of synthetic samples per client and downstream classifier configuration. |
 | `privacy_curve` | Privacy-utility sweep settings. |
 
@@ -117,7 +117,7 @@ Publication configurations live in `configs/publication/`.
 
 ## Reproducible Workflows
 
-Fetch preprocessed CellOT datasets:
+Fetch the preprocessed CellOT single-cell benchmarks:
 
 ```bash
 python scripts/fetch_cellot_datasets.py --dataset lupuspatients
@@ -125,7 +125,7 @@ python scripts/fetch_cellot_datasets.py --dataset statefate
 python scripts/fetch_cellot_datasets.py --dataset sciplex3
 ```
 
-Prepare the BrainSCOPE-style cohort dataset from processed matrices in `liyy2/aging_YL`:
+Prepare the BrainSCOPE-style multi-cohort pseudobulk dataset from processed matrices in `liyy2/aging_YL`:
 
 ```bash
 python scripts/prepare_brainscope_aging_yl.py
@@ -133,7 +133,7 @@ python run.py --config configs/brainscope_excitatory_smoke.yaml
 python run.py --config configs/brainscope_excitatory_demo_best.yaml
 ```
 
-Sweep reference-label and synthetic-sample budgets:
+Sweep labeled target-reference and transported-synthetic budgets:
 
 ```bash
 python scripts/sweep_ref_sweet_spot.py --config configs/brainscope_excitatory_ref50_optionC.yaml \
