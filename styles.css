@@ -9,10 +9,15 @@
   --line-strong: #bcbcbc;
   --teal: #0b5f58;
   --teal-soft: #e6f0ee;
-  --blue: #355c9f;
-  --blue-soft: #e8edf8;
-  --rust: #804b31;
-  --rust-soft: #f0e5df;
+  --blue: #526f8f;
+  --blue-soft: #e9eef3;
+  --rust: #8a604c;
+  --rust-soft: #f0e7e1;
+  --series-main: #5f7896;
+  --series-ref: #c8d2df;
+  --series-alt: #8a9f70;
+  --axis: #1f1f1f;
+  --grid: #ece9e4;
 }
 
 * {
@@ -710,7 +715,7 @@ figcaption {
 .chart-heading {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 20px;
   margin-bottom: 24px;
 }
@@ -721,31 +726,6 @@ figcaption {
   font-size: 32px;
   font-weight: 600;
   line-height: 1.15;
-}
-
-.chart-heading a {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.chart-heading a:hover,
-.chart-heading a:focus-visible {
-  outline: 1px solid var(--line);
-  outline-offset: 3px;
-}
-
-.chart-heading svg {
-  width: 30px;
-  height: 30px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .chart-legend {
@@ -772,15 +752,15 @@ figcaption {
 }
 
 .series-noisyflow {
-  background: #5974c9;
+  background: var(--series-main);
 }
 
 .series-ref {
-  background: #c9d7ff;
+  background: var(--series-ref);
 }
 
 .series-alt {
-  background: #68ad32;
+  background: var(--series-alt);
 }
 
 .chart-svg {
@@ -791,13 +771,13 @@ figcaption {
 
 .chart-grid path {
   fill: none;
-  stroke: #ededed;
+  stroke: var(--grid);
   stroke-width: 1;
 }
 
 .chart-axis path {
   fill: none;
-  stroke: #111111;
+  stroke: var(--axis);
   stroke-width: 2;
 }
 
@@ -805,6 +785,11 @@ figcaption {
 .axis-title {
   fill: var(--ink);
   font-size: 20px;
+}
+
+.chart-ticks.y text {
+  text-anchor: end;
+  dominant-baseline: middle;
 }
 
 .chart-ticks.x text {
@@ -824,15 +809,15 @@ figcaption {
 }
 
 .line-noisyflow {
-  stroke: #5974c9;
+  stroke: var(--series-main);
 }
 
 .line-ref {
-  stroke: #c9d7ff;
+  stroke: var(--series-ref);
 }
 
 .line-alt {
-  stroke: #68ad32;
+  stroke: var(--series-alt);
 }
 
 .chart-points circle {
@@ -841,15 +826,15 @@ figcaption {
 }
 
 .chart-points.noisyflow circle {
-  fill: #5974c9;
+  fill: var(--series-main);
 }
 
 .chart-points.ref circle {
-  fill: #c9d7ff;
+  fill: var(--series-ref);
 }
 
 .chart-points.alt circle {
-  fill: #68ad32;
+  fill: var(--series-alt);
 }
 
 .analysis-chart figcaption {
@@ -1115,16 +1100,6 @@ figcaption {
   .chart-heading h3,
   .analysis-chart-grid .chart-heading h3 {
     font-size: 21px;
-  }
-
-  .chart-heading a {
-    width: 34px;
-    height: 34px;
-  }
-
-  .chart-heading svg {
-    width: 24px;
-    height: 24px;
   }
 
   .chart-legend,
