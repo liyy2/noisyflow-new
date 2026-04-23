@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NoisyFlow Data Guide</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='10' fill='%23111111'/%3E%3Cpath d='M12 29c5-10 10-10 15 0 3 6 6 6 9 2M12 19c5 10 10 10 15 0 3-6 6-6 9-2' fill='none' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #111111;
+        --muted: #5c5c5c;
+        --line: #dedede;
+        --grid: #ece9e4;
+        --accent: #5f7896;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+        line-height: 1.6;
+      }
+
+      main {
+        width: min(980px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 64px 0 88px;
+      }
+
+      a {
+        color: inherit;
+        text-underline-offset: 4px;
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 780px;
+        margin: 0;
+        font-size: 56px;
+        font-weight: 400;
+        line-height: 1.04;
+      }
+
+      h2 {
+        margin: 64px 0 14px;
+        padding-top: 32px;
+        border-top: 1px solid var(--line);
+        font-size: 30px;
+        font-weight: 500;
+        line-height: 1.18;
+      }
+
+      p {
+        max-width: 760px;
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 17px;
+      }
+
+      table {
+        width: 100%;
+        margin-top: 26px;
+        border-collapse: collapse;
+        border: 1px solid var(--line);
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      thead th {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      tbody th {
+        width: 24%;
+        font-weight: 500;
+      }
+
+      code {
+        font-family: "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 0.92em;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      ul {
+        max-width: 760px;
+        margin: 18px 0 0;
+        padding-left: 22px;
+        color: var(--muted);
+      }
+
+      li + li {
+        margin-top: 8px;
+      }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-top: 28px;
+      }
+
+      @media (max-width: 640px) {
+        main {
+          width: calc(100% - 32px);
+          padding-top: 44px;
+        }
+
+        h1 {
+          font-size: 38px;
+        }
+
+        table,
+        tbody,
+        tr,
+        th,
+        td {
+          display: block;
+          width: 100%;
+        }
+
+        thead {
+          display: none;
+        }
+
+        tr {
+          padding: 16px;
+          border-bottom: 1px solid var(--line);
+        }
+
+        th,
+        td {
+          padding: 0;
+          border: 0;
+        }
+
+        td {
+          margin-top: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">NoisyFlow Data Guide</p>
+      <h1>Paper benchmark reconstruction paths.</h1>
+      <p>
+        This page separates benchmarks reported in the Bioinformatics manuscript from
+        additional dataset builders included in the repository. Raw datasets, generated
+        arrays, results, and plot files are local artifacts rather than tracked files.
+      </p>
+      <p class="links">
+        <a href="../index.html#datasets">Back to webpage</a>
+        <a href="data.md">Markdown source</a>
+      </p>
+
+      <h2>Paper Benchmarks</h2>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Paper benchmark</th>
+            <th scope="col">Setting</th>
+            <th scope="col">Builder and artifact</th>
+            <th scope="col">Publication configs</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Mixture of Gaussians</th>
+            <td><code>K=3</code>, <code>C=6</code>, <code>d=50</code>, reference size 100, DP run near <code>epsilon=20</code>.</td>
+            <td><code>federated_mixture_gaussians</code>; generated in memory.</td>
+            <td><code>configs/publication/benchmark_mog_ref100_dp.yaml</code></td>
+          </tr>
+          <tr>
+            <th scope="row">Kang lupus PBMC</th>
+            <td>Patient 101 held out as target; few-shot <code>nref-train={5,10,50}</code>; privacy-utility Options A/B/C.</td>
+            <td><code>cellot_lupuspatients_kang_hvg</code>; <code>datasets/scrna-lupuspatients/kang-hvg.h5ad</code>.</td>
+            <td><code>configs/publication/pbmc_kang_fewshot_ref5.yaml</code>; Options A/B/C: <code>configs/publication/pbmc_kang_privacy_curve_option_a_private.yaml</code>, <code>configs/publication/pbmc_kang_privacy_curve_option_b_synthetic.yaml</code>, <code>configs/publication/pbmc_kang_privacy_curve_option_c_mixed.yaml</code>.</td>
+          </tr>
+          <tr>
+            <th scope="row">BrainSCOPE snRNA-seq</th>
+            <td>CMC as source, remaining cohorts as target; <code>nref-train=20</code>, PCA dimension 50.</td>
+            <td><code>brainscope</code>; <code>datasets/brainscope/brainscope_excitatory_neur.npz</code>.</td>
+            <td><code>configs/publication/brainscope_table_seed0.yaml</code></td>
+          </tr>
+          <tr>
+            <th scope="row">CAMELYON17-WILDS</th>
+            <td>Source hospitals 0/3/4, target hospital 2; ResNet feature table; <code>nref-train=50</code>; Option C at <code>epsilon=0.32</code>.</td>
+            <td><code>camelyon17_wilds</code>; <code>datasets/camelyon17_wilds/camelyon17_resnet18.npz</code>.</td>
+            <td><code>configs/publication/camelyon17_main_optionc_eps0p32.yaml</code></td>
+          </tr>
+          <tr>
+            <th scope="row">PAMAP2 Protocol</th>
+            <td>Target subject 107; source subjects 101/102/105/106/108; <code>nref-train=20</code>, <code>ntest=400</code>, 11 activities.</td>
+            <td><code>pamap2</code>; <code>datasets/pamap2/pamap2_protocol_windows_11act.npz</code>.</td>
+            <td><code>configs/publication/pamap2_table_seed0.yaml</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Additional Builders</h2>
+      <p>
+        The repository also includes builders for toy Gaussians, generic federated
+        cell tables, CellOT Statefate, SciPlex3, and 4i proteomics. These are
+        supported code paths, not additional paper-result claims unless paired with
+        a publication config.
+      </p>
+
+      <h2>Reproduction Checklist</h2>
+      <ul>
+        <li>Create the raw or prepared dataset artifact under <code>datasets/&lt;dataset-name&gt;/</code>.</li>
+        <li>Run the matching <code>configs/publication/*.yaml</code> file from the repository root.</li>
+        <li>Record the seed, preparation command, upstream data version, and generated result JSON or plot.</li>
+        <li>For downloaded public datasets, keep cache and split metadata with the local experiment record.</li>
+      </ul>
+    </main>
+  </body>
+</html>

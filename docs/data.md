@@ -12,6 +12,18 @@ Every builder returns the same three objects:
 
 The repository does not track raw or generated datasets. The `datasets/`, `.cache/`, `results/`, and most generated `plots/` files are local artifacts. Reproduce a dataset by running the commands below from the repository root, then run the matching YAML config.
 
+## Paper Benchmark Reproduction
+
+The Bioinformatics manuscript evaluates five benchmark families. The broader builder table below also lists additional supported datasets; those extra builders are not paper-result claims unless a publication config is listed here.
+
+| Paper benchmark | Paper setting | `data.type` / prepared artifact | Publication configs |
+|---|---|---|---|
+| Mixture of Gaussians | `K=3`, `C=6`, `d=50`, reference size 100, DP run near `epsilon=20` | `federated_mixture_gaussians`; generated in memory | `configs/publication/benchmark_mog_ref100_dp.yaml`, `configs/publication/benchmark_mog_ref100_table_nodp.yaml` |
+| Kang lupus PBMC | Patient 101 held out as target; few-shot `nref-train={5,10,50}`; privacy-utility Options A/B/C | `cellot_lupuspatients_kang_hvg`; `datasets/scrna-lupuspatients/kang-hvg.h5ad` | `configs/publication/pbmc_kang_fewshot_ref5.yaml`, `configs/publication/pbmc_kang_fewshot_ref10.yaml`, `configs/publication/pbmc_kang_fewshot_ref50.yaml`, `configs/publication/pbmc_kang_privacy_curve_option_a_private.yaml`, `configs/publication/pbmc_kang_privacy_curve_option_b_synthetic.yaml`, `configs/publication/pbmc_kang_privacy_curve_option_c_mixed.yaml` |
+| BrainSCOPE snRNA-seq | CMC as source, remaining cohorts as target; `nref-train=20`, PCA dimension 50 | `brainscope`; `datasets/brainscope/brainscope_excitatory_neur.npz` | `configs/publication/brainscope_table_seed0.yaml`, `configs/publication/brainscope_ref_sweep_seed0.yaml` |
+| CAMELYON17-WILDS | Source hospitals 0/3/4, target hospital 2; ResNet feature table; `nref-train=50`; Option C at `epsilon=0.32` | `camelyon17_wilds`; `datasets/camelyon17_wilds/camelyon17_resnet18.npz` | `configs/publication/camelyon17_main_optionc_eps0p32.yaml`, `configs/publication/camelyon17_mia_dp.yaml`, `configs/publication/camelyon17_mia_nodp.yaml` |
+| PAMAP2 Protocol | Target subject 107; source subjects 101/102/105/106/108; `nref-train=20`, `ntest=400`, 11 activities | `pamap2`; `datasets/pamap2/pamap2_protocol_windows_11act.npz` | `configs/publication/pamap2_table_seed0.yaml`, `configs/publication/pamap2_raw_no_transport_syn200.yaml` |
+
 ## Supported Dataset Types
 
 | `data.type` | Builder | Required artifact | How to create it | Example config |
@@ -21,15 +33,15 @@ The repository does not track raw or generated datasets. The `datasets/`, `.cach
 | `toy_federated_gaussians` | `make_toy_federated_gaussians` | None | Generated in memory from `seed` and YAML parameters. | Custom/toy configs |
 | `federated_cell_dataset` | `make_federated_cell_dataset` | `.h5ad` or `.npz` single-cell table | Supply a compatible table or use one of the CellOT wrappers below. | Custom configs |
 | `cellot_lupuspatients_kang_hvg` | `make_cellot_lupuspatients_kang_hvg` | `datasets/scrna-lupuspatients/kang-hvg.h5ad` | `python scripts/fetch_cellot_datasets.py --dataset lupuspatients` | `configs/cellot_lupus_kang_smoke.yaml` |
-| `cellot_statefate_invitro_hvg` | `make_cellot_statefate_invitro_hvg` | `datasets/scrna-statefate/invitro-hvg.h5ad` | `python scripts/fetch_cellot_datasets.py --dataset statefate` | `configs/cellot_statefate_invitro_smoke.yaml` |
-| `cellot_sciplex3_hvg` | `make_cellot_sciplex3_hvg` | `datasets/scrna-sciplex3/hvg.h5ad` | `python scripts/fetch_cellot_datasets.py --dataset sciplex3` | `configs/cellot_sciplex3_trametinib_cellot_ref50.yaml` |
-| `brainscope` | `make_federated_brainscope` | `datasets/brainscope/brainscope_excitatory_neur.npz` | `python scripts/prepare_brainscope_aging_yl.py` | `configs/brainscope_excitatory_smoke.yaml` |
+| `cellot_statefate_invitro_hvg` | `make_cellot_statefate_invitro_hvg` | `datasets/scrna-statefate/invitro-hvg.h5ad` | `python scripts/fetch_cellot_datasets.py --dataset statefate` | `configs/publication/statefate_reference_sweep_seed0.yaml` |
+| `cellot_sciplex3_hvg` | `make_cellot_sciplex3_hvg` | `datasets/scrna-sciplex3/hvg.h5ad` | `python scripts/fetch_cellot_datasets.py --dataset sciplex3` | Custom config |
+| `brainscope` | `make_federated_brainscope` | `datasets/brainscope/brainscope_excitatory_neur.npz` | `python scripts/prepare_brainscope_aging_yl.py` | `configs/publication/brainscope_table_seed0.yaml` |
 | `federated_brainscope` | Alias of `brainscope` builder | Same as `brainscope` | Same as `brainscope`. | Custom configs |
-| `camelyon17_wilds` | `make_federated_camelyon17_wilds` | `datasets/camelyon17_wilds/camelyon17_resnet18.npz` | `python scripts/prepare_camelyon17_wilds.py ...` | `configs/camelyon17_wilds_quick.yaml` |
-| `camelyon17` | `make_federated_camelyon17` | CAMELYON17 embedding `.npz` | Use `scripts/prepare_camelyon17_wilds.py`, usually with all splits. | `configs/camelyon17_source2_target3_stage_mia_nodp.yaml` |
-| `pamap2` | `make_federated_pamap2` | `datasets/pamap2/pamap2_protocol_windows.npz` or variant | `python scripts/prepare_pamap2.py ...` | `configs/pamap2_protocol_smoke.yaml` |
+| `camelyon17_wilds` | `make_federated_camelyon17_wilds` | `datasets/camelyon17_wilds/camelyon17_resnet18.npz` | `python scripts/prepare_camelyon17_wilds.py ...` | `configs/publication/camelyon17_main_optionc_eps0p32.yaml` |
+| `camelyon17` | `make_federated_camelyon17` | CAMELYON17 embedding `.npz` | Use `scripts/prepare_camelyon17_wilds.py`, usually with all splits. | `configs/publication/camelyon17_mia_nodp.yaml` |
+| `pamap2` | `make_federated_pamap2` | `datasets/pamap2/pamap2_protocol_windows.npz` or variant | `python scripts/prepare_pamap2.py ...` | `configs/publication/pamap2_table_seed0.yaml` |
 | `federated_pamap2` | Alias of `pamap2` builder | Same as `pamap2` | Same as `pamap2`. | Custom configs |
-| `federated_4i_proteomics` | `make_federated_4i_proteomics` | `datasets/4i/8h.h5ad` | Supply a compatible 4i `.h5ad`; no downloader is included. | `configs/4i_proteomics_control_to_dasatinib_smoke.yaml` |
+| `federated_4i_proteomics` | `make_federated_4i_proteomics` | `datasets/4i/8h.h5ad` | Supply a compatible 4i `.h5ad`; no downloader is included. | Custom config |
 
 ## Reproducibility Checklist
 
@@ -225,8 +237,8 @@ Run smoke or representative experiments:
 
 ```bash
 python run.py --config configs/cellot_lupus_kang_smoke.yaml
-python run.py --config configs/cellot_statefate_invitro_smoke.yaml
-python run.py --config configs/cellot_sciplex3_trametinib_cellot_ref50.yaml
+python run.py --config configs/publication/statefate_reference_sweep_seed0.yaml
+# SciPlex3 builder is available; create a custom config for this artifact.
 ```
 
 Reproduction notes:
@@ -310,8 +322,8 @@ data:
 Run:
 
 ```bash
-python run.py --config configs/brainscope_excitatory_smoke.yaml
-python run.py --config configs/brainscope_excitatory_demo_best.yaml
+python run.py --config configs/publication/brainscope_table_seed0.yaml
+python run.py --config configs/publication/brainscope_ref_sweep_seed0.yaml
 ```
 
 ## CAMELYON17-WILDS Embeddings
@@ -398,7 +410,7 @@ data:
 Run:
 
 ```bash
-python run.py --config configs/camelyon17_wilds_quick.yaml
+python run.py --config configs/publication/camelyon17_main_optionc_eps0p32.yaml
 ```
 
 ### `camelyon17`
@@ -425,7 +437,7 @@ data:
 Run:
 
 ```bash
-python run.py --config configs/camelyon17_source2_target3_stage_mia_nodp.yaml
+python run.py --config configs/publication/camelyon17_mia_nodp.yaml
 ```
 
 ## PAMAP2 Wearable Activity Windows
@@ -507,8 +519,8 @@ data:
 Run:
 
 ```bash
-python run.py --config configs/pamap2_protocol_smoke.yaml
-python run.py --config configs/pamap2_protocol_best.yaml
+python run.py --config configs/publication/pamap2_table_seed0.yaml
+python run.py --config configs/publication/pamap2_raw_no_transport_syn200.yaml
 ```
 
 ## 4i Single-Cell Proteomics
@@ -584,7 +596,7 @@ data:
 Run:
 
 ```bash
-python run.py --config configs/4i_proteomics_control_to_dasatinib_smoke.yaml
+# 4i builder is available; provide a local dataset and custom config.
 ```
 
 ## Dataset Sanity Checks
@@ -621,8 +633,8 @@ Run the fastest matching smoke config before launching a sweep:
 ```bash
 python run.py --config configs/quick_smoke.yaml
 python run.py --config configs/cellot_lupus_kang_smoke.yaml
-python run.py --config configs/brainscope_excitatory_smoke.yaml
-python run.py --config configs/camelyon17_wilds_quick.yaml
-python run.py --config configs/pamap2_protocol_smoke.yaml
-python run.py --config configs/4i_proteomics_control_to_dasatinib_smoke.yaml
+python run.py --config configs/publication/brainscope_table_seed0.yaml
+python run.py --config configs/publication/camelyon17_main_optionc_eps0p32.yaml
+python run.py --config configs/publication/pamap2_table_seed0.yaml
+# 4i builder is available; provide a local dataset and custom config.
 ```
