@@ -178,10 +178,10 @@
           <section class="article-section" id="method" aria-labelledby="method-title">
             <div class="section-copy">
               <p class="section-kicker">Method</p>
-              <h2 id="method-title">A three-stage protocol for private domain adaptation.</h2>
+              <h2 id="method-title">A staged experimental protocol for private domain adaptation.</h2>
               <p>
-                Each stage is exposed as a reusable module and wired through YAML experiment
-                configuration, so ablations and benchmark runs share the same execution path.
+                NoisyFlow separates private source modeling, target-domain transport, and downstream
+                evaluation so each assumption can be ablated without exposing client-level data.
               </p>
             </div>
 
@@ -189,28 +189,28 @@
               <article class="stage-card">
                 <svg class="section-icon" aria-hidden="true"><use href="#icon-flow"></use></svg>
                 <span>01</span>
-                <h3>Client generation</h3>
+                <h3>Private source modeling</h3>
                 <p>
-                  Each source client trains a label-conditional flow-matching generator, with a VAE
-                  ablation available for controlled comparisons.
+                  Source domains are represented locally by label-conditional generative models,
+                  providing synthetic client distributions for later analysis.
                 </p>
               </article>
               <article class="stage-card">
                 <svg class="section-icon" aria-hidden="true"><use href="#icon-transport"></use></svg>
                 <span>02</span>
-                <h3>Target transport</h3>
+                <h3>Reference-guided transport</h3>
                 <p>
-                  ICNN, CellOT, and rectified-flow transport variants map source or synthetic samples
-                  into the target-reference distribution.
+                  Small labeled target-reference sets define transport maps that align private
+                  source representations with the target domain.
                 </p>
               </article>
               <article class="stage-card">
                 <svg class="section-icon" aria-hidden="true"><use href="#icon-evaluate"></use></svg>
                 <span>03</span>
-                <h3>Server evaluation</h3>
+                <h3>Comparative evaluation</h3>
                 <p>
-                  The server trains Synth-only, Ref-only, and Ref+Synth classifiers and reports
-                  target-test utility, alignment, privacy, and attack metrics.
+                  Utility, alignment, and membership-inference risk are measured across Ref-only,
+                  Synth-only, and Ref+Synth training regimes.
                 </p>
               </article>
             </div>
