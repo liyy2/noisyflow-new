@@ -118,7 +118,7 @@
         <article class="article-main">
           <header class="article-hero">
             <div class="article-meta">
-              <time datetime="2026">Bioinformatics manuscript</time>
+              <time datetime="2026">ISMB 2026 / Bioinformatics</time>
             </div>
             <h1>NoisyFlow</h1>
             <p class="hero-deck">
@@ -167,7 +167,7 @@
                 <h3>DP source generator</h3>
                 <p>
                   Each client trains a label-conditional flow-matching generator with DP-SGD,
-                  producing <span class="math-symbol">x&#771;</span> pseudo-source samples from its local distribution.
+                  producing pseudo-source samples from its local distribution.
                 </p>
               </article>
               <article class="stage-card">
@@ -196,9 +196,9 @@
               <p class="section-kicker">Evaluation</p>
               <h2 id="evaluation-title">Evaluation endpoints for utility, alignment, privacy accounting, and attack risk.</h2>
               <p>
-                Utility is compared across Ref-train-only, transported <span class="math-symbol">y&#771;</span>-only,
-                and Ref-train+<span class="math-symbol">y&#771;</span> training regimes; untransported
-                <span class="math-symbol">x&#771;</span>-only ablations isolate the effect of optimal transport.
+                Utility is compared across Ref-train-only, transported <span class="math-term"><span class="math-symbol">y&#771;</span>-only</span>,
+                and <span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span> training regimes; untransported
+                <span class="math-term"><span class="math-symbol">x&#771;</span>-only</span> ablations isolate the effect of optimal transport.
               </p>
             </div>
 
@@ -209,11 +209,11 @@
                   <p>Classifier trained only on labeled samples from the reference training split.</p>
                 </div>
                 <div>
-                  <span><span class="math-symbol">y&#771;</span>-only</span>
+                  <span class="math-term"><span class="math-symbol">y&#771;</span>-only</span>
                   <p>Classifier trained only on transported, reference-aligned pseudo-data.</p>
                 </div>
                 <div>
-                  <span>Ref-train+<span class="math-symbol">y&#771;</span></span>
+                  <span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span>
                   <p>Classifier trained on both reference labels and transported pseudo-data.</p>
                 </div>
                 <div>
@@ -244,13 +244,13 @@
                       <td><span class="matrix-status muted">Not applicable</span></td>
                     </tr>
                     <tr>
-                      <th scope="row"><span class="math-symbol">y&#771;</span>-only</th>
+                      <th scope="row"><span class="math-term"><span class="math-symbol">y&#771;</span>-only</span></th>
                       <td><span class="matrix-status active">Reported</span></td>
                       <td><span class="matrix-status active">Reported</span></td>
                       <td><span class="matrix-status active">Reported</span></td>
                     </tr>
                     <tr>
-                      <th scope="row">Ref-train+<span class="math-symbol">y&#771;</span></th>
+                      <th scope="row"><span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span></th>
                       <td><span class="matrix-status active">Reported</span></td>
                       <td><span class="matrix-status active">Reported</span></td>
                       <td><span class="matrix-status active">Reported</span></td>
@@ -269,7 +269,7 @@
                   <div>
                     <h3>Privacy accounting</h3>
                     <p>
-                      Per-client <code>(&epsilon;,&delta;)</code>-DP is computed from DP-SGD clipping and
+                      Per-client <code class="math-term">(&epsilon;,&delta;)-DP</code> is computed from DP-SGD clipping and
                       Gaussian noise; noised label priors are optional and used only for class sampling.
                     </p>
                   </div>
@@ -295,8 +295,8 @@
               <p>
                 Across PBMC, BrainSCOPE, CAMELYON17-WILDS, and PAMAP2, transported
                 pseudo-data improves target accuracy relative to small reference-only baselines;
-                the paper reports both <span class="math-symbol">y&#771;</span>-only and
-                Ref-train+<span class="math-symbol">y&#771;</span> regimes.
+                the paper reports both <span class="math-term"><span class="math-symbol">y&#771;</span>-only</span> and
+                <span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span> regimes.
               </p>
             </div>
 
@@ -306,7 +306,7 @@
                   <h3>Few-shot PBMC target-reference accuracy</h3>
                 </div>
                 <div class="chart-legend" aria-hidden="true">
-                  <span><i class="series-noisyflow"></i>Ref-train+<span class="math-symbol">y&#771;</span></span>
+                  <span><i class="series-noisyflow"></i><span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span></span>
                   <span><i class="series-ref"></i>Ref-train-only</span>
                 </div>
                 <svg class="chart-svg" viewBox="0 0 940 560" role="img" aria-label="Line chart showing PBMC target accuracy across 5, 10, and 50 labeled reference cells. Ref-train plus transported pseudo-data stays near 79 percent while Ref-train-only falls sharply with fewer labels.">
@@ -356,7 +356,7 @@
                 </svg>
                 <figcaption>
                   In Kang PBMC few-shot runs, Ref-train-only drops to 25.8% accuracy with five
-                  labeled reference cells, while Ref-train+<span class="math-symbol">y&#771;</span> remains near 79%
+                  labeled reference cells, while <span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span> remains near 79%
                   across the sweep.
                 </figcaption>
               </figure>
@@ -368,7 +368,7 @@
                   </div>
                   <div class="chart-legend" aria-hidden="true">
                     <span><i class="series-noisyflow"></i>Option C mixed</span>
-                    <span><i class="series-ref"></i>Option B <span class="math-symbol">x&#771;</span>-only</span>
+                    <span><i class="series-ref"></i>Option B <span class="math-term"><span class="math-symbol">x&#771;</span>-only</span></span>
                     <span><i class="series-alt"></i>Option A real</span>
                   </div>
                   <svg class="chart-svg" viewBox="0 0 620 450" role="img" aria-label="Line chart comparing PBMC privacy utility options as epsilon increases.">
@@ -440,7 +440,7 @@
                     <h3>Cross-domain target accuracy</h3>
                   </div>
                   <div class="chart-legend" aria-hidden="true">
-                    <span><i class="series-noisyflow"></i>Ref-train+<span class="math-symbol">y&#771;</span></span>
+                    <span><i class="series-noisyflow"></i><span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span></span>
                     <span><i class="series-ref"></i>Ref-train-only</span>
                   </div>
                   <svg class="chart-svg" viewBox="0 0 620 450" role="img" aria-label="Dot chart comparing Ref-train-only and Ref-train plus transported pseudo-data across BrainSCOPE, CAMELYON17, and PAMAP2.">
@@ -492,7 +492,8 @@
                   </svg>
                   <figcaption>
                     Values match the paper tables: BrainSCOPE 61.2 to 75.5, CAMELYON17-WILDS
-                    89.21 to 92.51, and PAMAP2 75.3 to 93.8 for Ref-train+<span class="math-symbol">y&#771;</span>.
+                    89.21 to 92.51, and PAMAP2 75.3 to 93.8 for
+                    <span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span>.
                   </figcaption>
                 </figure>
               </div>
@@ -502,62 +503,34 @@
           <section class="article-section" id="datasets" aria-labelledby="datasets-title">
             <div class="section-copy">
               <p class="section-kicker">Datasets</p>
-              <h2 id="datasets-title">Paper benchmarks with documented reconstruction paths.</h2>
+              <h2 id="datasets-title">Benchmarks with documented reconstruction paths.</h2>
               <p>
-                The table maps paper names to repository dataset builders and publication configs.
-                Additional supported builders are kept separate in the data guide.
+                The data guide records required artifacts, download or preparation commands, split
+                rules, schemas, seeds, and matching publication configs.
               </p>
               <a class="text-link" href="docs/data.html">Open the dataset guide</a>
             </div>
 
-            <div class="benchmark-table-wrap" tabindex="0" aria-label="Paper benchmark reconstruction table">
-              <table class="benchmark-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Paper benchmark</th>
-                    <th scope="col">Repository entry point</th>
-                    <th scope="col">Canonical config</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th scope="row">Mixture of Gaussians</th>
-                    <td data-label="Repository entry point"><code>federated_mixture_gaussians</code></td>
-                    <td data-label="Canonical config"><code>configs/publication/benchmark_mog_ref100_dp.yaml</code></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Kang lupus PBMC</th>
-                    <td data-label="Repository entry point"><code>cellot_lupuspatients_kang_hvg</code></td>
-                    <td data-label="Canonical config">
-                      Few-shot: <code>configs/publication/pbmc_kang_fewshot_ref5.yaml</code>;
-                      Options A/B/C are listed in the data guide.
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row">BrainSCOPE snRNA-seq</th>
-                    <td data-label="Repository entry point"><code>brainscope</code></td>
-                    <td data-label="Canonical config"><code>configs/publication/brainscope_table_seed0.yaml</code></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">CAMELYON17-WILDS</th>
-                    <td data-label="Repository entry point"><code>camelyon17_wilds</code></td>
-                    <td data-label="Canonical config"><code>configs/publication/camelyon17_main_optionc_eps0p32.yaml</code></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">PAMAP2 Protocol</th>
-                    <td data-label="Repository entry point"><code>pamap2</code></td>
-                    <td data-label="Canonical config"><code>configs/publication/pamap2_table_seed0.yaml</code></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <figure class="dataset-figure">
+              <img
+                src="assets/noisyflow-schematic-600dpi.png"
+                alt="NoisyFlow benchmark schematic summarizing private source cohorts, target reference data, transport, release, and downstream evaluation."
+                loading="lazy"
+                width="3330"
+                height="2397"
+              >
+              <figcaption>
+                The benchmark workflow covers private federated sources, limited target references,
+                target-domain transport, released pseudo-data, and downstream evaluation.
+              </figcaption>
+            </figure>
           </section>
 
           <footer class="site-footer" aria-label="Citation">
             <p>Citation</p>
             <h2>Cite NoisyFlow</h2>
             <p>
-              If you use this repository, please cite the Bioinformatics manuscript. The final
+              If you use this repository, please cite the ISMB 2026 / Bioinformatics paper. The final
               BibTeX entry will be added when DOI and proceedings metadata are available.
             </p>
           </footer>

@@ -13,11 +13,11 @@
   --blue-soft: #e9eef3;
   --rust: #8f715e;
   --rust-soft: #f0e7e1;
-  --series-main: #5f7896;
-  --series-ref: #767d83;
-  --series-alt: #9a6f55;
+  --series-main: #4b6380;
+  --series-ref: #6f6d68;
+  --series-alt: #9b725c;
   --axis: #1f1f1f;
-  --grid: #ece9e4;
+  --grid: #e6e2db;
 }
 
 * {
@@ -59,6 +59,10 @@ code {
 
 .math-symbol {
   font-family: inherit;
+  white-space: nowrap;
+}
+
+.math-term {
   white-space: nowrap;
 }
 
@@ -275,7 +279,7 @@ figcaption {
   color: var(--rust);
 }
 
-.stage-card span {
+.stage-card > span {
   display: block;
   margin: 22px 0 14px;
   color: var(--muted);
@@ -598,8 +602,8 @@ figcaption {
 
 .chart-points.ref circle {
   fill: var(--series-ref);
-  stroke: var(--series-ref);
-  stroke-width: 0;
+  stroke: var(--page);
+  stroke-width: 2;
 }
 
 .chart-points.alt circle {
@@ -686,51 +690,18 @@ figcaption {
   line-height: 1.58;
 }
 
-.benchmark-table-wrap {
-  overflow-x: auto;
-  margin-top: 36px;
+.dataset-figure {
+  margin: 42px 0 0;
+  padding: 18px;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface);
 }
 
-.benchmark-table {
+.dataset-figure img {
   width: 100%;
-  min-width: 760px;
-  border-collapse: collapse;
-  font-size: 14px;
-  line-height: 1.45;
-}
-
-.benchmark-table th,
-.benchmark-table td {
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--line);
-  text-align: left;
-  vertical-align: top;
-}
-
-.benchmark-table thead th {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.benchmark-table tbody th {
-  width: 26%;
-  font-weight: 500;
-}
-
-.benchmark-table tr:last-child th,
-.benchmark-table tr:last-child td {
-  border-bottom: 0;
-}
-
-.benchmark-table th + th,
-.benchmark-table td + td,
-.benchmark-table th + td {
-  border-left: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
 }
 
 .text-link {
@@ -882,19 +853,12 @@ figcaption {
   }
 
   .evaluation-layout > *,
-  .term-list > *,
-  .benchmark-table td,
-  .benchmark-table th {
+  .term-list > * {
     min-width: 0;
   }
 
   .evaluation-board {
     padding: 16px;
-  }
-
-  .benchmark-table code {
-    overflow-wrap: anywhere;
-    word-break: break-word;
   }
 
   .hero-figure a {
@@ -965,50 +929,4 @@ figcaption {
     font-size: 15px;
   }
 
-  .benchmark-table-wrap {
-    overflow: visible;
-  }
-
-  .benchmark-table,
-  .benchmark-table tbody,
-  .benchmark-table tr,
-  .benchmark-table th,
-  .benchmark-table td {
-    display: block;
-    min-width: 0;
-    width: 100%;
-  }
-
-  .benchmark-table thead {
-    display: none;
-  }
-
-  .benchmark-table tr {
-    padding: 18px;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .benchmark-table tr:last-child {
-    border-bottom: 0;
-  }
-
-  .benchmark-table th,
-  .benchmark-table td {
-    padding: 0;
-    border: 0;
-  }
-
-  .benchmark-table td {
-    margin-top: 14px;
-  }
-
-  .benchmark-table td::before {
-    display: block;
-    margin-bottom: 3px;
-    color: var(--muted);
-    content: attr(data-label);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-  }
 }
