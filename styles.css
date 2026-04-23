@@ -723,7 +723,7 @@ figcaption {
 .chart-heading h3 {
   margin: 0;
   color: var(--ink);
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 600;
   line-height: 1.15;
 }
@@ -735,7 +735,7 @@ figcaption {
   align-items: center;
   margin: 0 0 26px 130px;
   color: var(--ink);
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.2;
 }
 
@@ -784,7 +784,7 @@ figcaption {
 .chart-ticks text,
 .axis-title {
   fill: var(--ink);
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .chart-ticks.y text {
@@ -797,7 +797,7 @@ figcaption {
 }
 
 .axis-title {
-  font-size: 22px;
+  font-size: 18px;
   text-anchor: middle;
 }
 
@@ -838,11 +838,11 @@ figcaption {
 }
 
 .analysis-chart figcaption {
-  max-width: 900px;
+  max-width: 760px;
   margin: 32px 0 0;
-  color: var(--ink);
-  font-size: 22px;
-  line-height: 1.6;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.58;
 }
 
 .analysis-chart figcaption strong {
@@ -862,12 +862,12 @@ figcaption {
 }
 
 .analysis-chart-grid .chart-heading h3 {
-  font-size: 25px;
+  font-size: 22px;
 }
 
 .analysis-chart-grid .chart-legend {
   margin-left: 92px;
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .analysis-chart-grid .chart-legend i {
@@ -877,7 +877,7 @@ figcaption {
 
 .analysis-chart-grid .chart-ticks text,
 .analysis-chart-grid .axis-title {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .analysis-chart-grid .chart-line {
@@ -888,8 +888,8 @@ figcaption {
   max-width: 100%;
   margin-top: 20px;
   color: var(--muted);
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.58;
 }
 
 .privacy-figure {
@@ -1024,7 +1024,7 @@ figcaption {
   }
 
   .chart-heading h3 {
-    font-size: 25px;
+    font-size: 24px;
   }
 
   .chart-legend {
@@ -1032,12 +1032,12 @@ figcaption {
   }
 
   .analysis-chart figcaption {
-    font-size: 17px;
+    font-size: 16px;
   }
 
   .chart-ticks text,
   .axis-title {
-    font-size: 18px;
+    font-size: 20px;
   }
 
   .stage-list,
@@ -1099,7 +1099,7 @@ figcaption {
 
   .chart-heading h3,
   .analysis-chart-grid .chart-heading h3 {
-    font-size: 21px;
+    font-size: 22px;
   }
 
   .chart-legend,
@@ -1119,7 +1119,7 @@ figcaption {
   .axis-title,
   .analysis-chart-grid .chart-ticks text,
   .analysis-chart-grid .axis-title {
-    font-size: 15px;
+    font-size: 22px;
   }
 
   .analysis-chart figcaption,
