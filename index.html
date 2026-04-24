@@ -224,52 +224,41 @@
 
               <div class="evaluation-board">
                 <div class="board-heading">
-                  <span>Evaluation matrix</span>
-                  <p>Classifier regimes and the endpoints reported for each comparison.</p>
+                  <span>Evaluation regimes</span>
+                  <p>Classifier comparisons are separated by training data and reported endpoint.</p>
                 </div>
-                <table class="matrix-comparison" aria-label="Evaluation endpoints by classifier regime">
-                  <thead>
-                    <tr>
-                      <th scope="col">Training regime</th>
-                      <th scope="col">Reported endpoints</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <th scope="row">
-                        <strong>Ref-train-only</strong>
-                        <span>Labeled reference baseline</span>
-                      </th>
-                      <td>
-                        <span class="endpoint-chip">Utility</span>
-                        <span class="endpoint-chip endpoint-muted">No transport alignment</span>
-                        <span class="endpoint-chip endpoint-muted">No private release</span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <th scope="row">
-                        <strong><span class="math-term"><span class="math-symbol">y&#771;</span>-only</span></strong>
-                        <span>Transported pseudo-data only</span>
-                      </th>
-                      <td>
-                        <span class="endpoint-chip">Utility</span>
-                        <span class="endpoint-chip">Alignment</span>
-                        <span class="endpoint-chip">Privacy accounting</span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <th scope="row">
-                        <strong><span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span></strong>
-                        <span>Reference labels plus transported pseudo-data</span>
-                      </th>
-                      <td>
-                        <span class="endpoint-chip">Utility</span>
-                        <span class="endpoint-chip">Alignment</span>
-                        <span class="endpoint-chip">Privacy accounting</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div class="regime-list">
+                  <article>
+                    <div>
+                      <span>Reference baseline</span>
+                      <h3>Ref-train-only</h3>
+                    </div>
+                    <p>
+                      Utility is measured for a classifier trained only on labeled reference
+                      samples; transport alignment and private-release accounting are not applicable.
+                    </p>
+                  </article>
+                  <article>
+                    <div>
+                      <span>Transported pseudo-data</span>
+                      <h3><span class="math-term"><span class="math-symbol">y&#771;</span>-only</span></h3>
+                    </div>
+                    <p>
+                      Utility, distributional alignment, and privacy accounting are reported for
+                      classifiers trained only on transported samples.
+                    </p>
+                  </article>
+                  <article>
+                    <div>
+                      <span>Combined training set</span>
+                      <h3><span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span></h3>
+                    </div>
+                    <p>
+                      Utility, alignment, and privacy accounting are reported after combining
+                      labeled reference samples with transported pseudo-data.
+                    </p>
+                  </article>
+                </div>
                 <p class="matrix-note">
                   Separate CAMELYON17 stage-level MIA audit: non-DP AUC 0.891 vs.
                   DP NoisyFlow AUC 0.563.
