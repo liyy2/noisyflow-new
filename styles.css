@@ -311,10 +311,11 @@ figcaption {
 }
 
 .evaluation-board {
-  padding: 22px;
-  background: #fbfbfa;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  padding: 0;
+  background: transparent;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
 }
 
 .term-list {
@@ -347,7 +348,7 @@ figcaption {
 .board-heading {
   display: grid;
   gap: 6px;
-  padding-bottom: 18px;
+  padding: 22px 0 18px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -364,72 +365,98 @@ figcaption {
   line-height: 1.45;
 }
 
-.matrix-table {
+.matrix-comparison {
   width: 100%;
-  margin-top: 18px;
+  margin-top: 0;
   border-collapse: collapse;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  border-style: hidden;
-  box-shadow: 0 0 0 1px var(--line);
   font-size: 14px;
 }
 
-.matrix-table th,
-.matrix-table td {
-  padding: 13px 14px;
-  border: 1px solid var(--line);
-  text-align: center;
+.matrix-comparison thead th {
+  padding: 15px 0 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.matrix-comparison thead th:first-child,
+.matrix-comparison tbody th {
+  width: 36%;
+  padding-right: 28px;
+}
+
+.matrix-comparison tbody tr {
+  min-height: 78px;
+  border-top: 1px solid var(--line);
+}
+
+.matrix-comparison tbody th,
+.matrix-comparison tbody td {
+  padding-top: 18px;
+  padding-bottom: 18px;
   vertical-align: middle;
 }
 
-.matrix-table thead th {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.matrix-table tbody th {
-  color: var(--ink);
-  font-weight: 500;
+.matrix-comparison tbody th {
   text-align: left;
 }
 
-.matrix-note {
-  max-width: 720px;
-  margin: 14px 0 0;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.45;
+.matrix-comparison tbody th strong {
+  display: block;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
-.matrix-status {
-  display: inline-grid;
-  width: 14px;
-  height: 14px;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 999px;
-  color: transparent;
+.matrix-comparison tbody th span:not(.math-symbol) {
+  display: block;
+}
+
+.matrix-comparison tbody th > span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.matrix-comparison tbody td {
   font-size: 0;
+}
+
+.endpoint-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  margin: 3px 8px 3px 0;
+  padding: 5px 10px;
+  border: 1px solid #cfd6d7;
+  border-radius: 999px;
+  background: #f5f7f6;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
-.matrix-status::after {
-  display: block;
-  width: 11px;
-  height: 11px;
-  border-radius: 999px;
-  content: "";
+.endpoint-muted {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--muted);
 }
 
-.matrix-status.active::after {
-  background: var(--teal);
-}
-
-.matrix-status.muted::after {
-  border: 1px solid var(--line-strong);
+.matrix-note {
+  max-width: 760px;
+  margin: 4px 0 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .axis-list {
@@ -858,7 +885,34 @@ figcaption {
   }
 
   .evaluation-board {
-    padding: 16px;
+    padding: 0;
+  }
+
+  .matrix-comparison thead {
+    display: none;
+  }
+
+  .matrix-comparison,
+  .matrix-comparison tbody,
+  .matrix-comparison tr,
+  .matrix-comparison th,
+  .matrix-comparison td {
+    display: block;
+    width: 100%;
+  }
+
+  .matrix-comparison tbody th,
+  .matrix-comparison tbody td {
+    padding: 0;
+  }
+
+  .matrix-comparison tbody tr {
+    min-height: 0;
+    padding: 18px 0;
+  }
+
+  .matrix-comparison tbody td {
+    margin-top: 12px;
   }
 
   .hero-figure a {

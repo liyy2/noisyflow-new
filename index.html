@@ -225,35 +225,48 @@
               <div class="evaluation-board">
                 <div class="board-heading">
                   <span>Evaluation matrix</span>
-                  <p>Reported endpoints for the main classifier regimes.</p>
+                  <p>Classifier regimes and the endpoints reported for each comparison.</p>
                 </div>
-                <table class="matrix-table">
+                <table class="matrix-comparison" aria-label="Evaluation endpoints by classifier regime">
                   <thead>
                     <tr>
-                      <th scope="col">Regime</th>
-                      <th scope="col">Utility</th>
-                      <th scope="col">Alignment</th>
-                      <th scope="col">Privacy</th>
+                      <th scope="col">Training regime</th>
+                      <th scope="col">Reported endpoints</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <th scope="row">Ref-train-only</th>
-                      <td><span class="matrix-status active">Reported</span></td>
-                      <td><span class="matrix-status muted">Not applicable</span></td>
-                      <td><span class="matrix-status muted">Not applicable</span></td>
+                      <th scope="row">
+                        <strong>Ref-train-only</strong>
+                        <span>Labeled reference baseline</span>
+                      </th>
+                      <td>
+                        <span class="endpoint-chip">Utility</span>
+                        <span class="endpoint-chip endpoint-muted">No transport alignment</span>
+                        <span class="endpoint-chip endpoint-muted">No private release</span>
+                      </td>
                     </tr>
                     <tr>
-                      <th scope="row"><span class="math-term"><span class="math-symbol">y&#771;</span>-only</span></th>
-                      <td><span class="matrix-status active">Reported</span></td>
-                      <td><span class="matrix-status active">Reported</span></td>
-                      <td><span class="matrix-status active">Reported</span></td>
+                      <th scope="row">
+                        <strong><span class="math-term"><span class="math-symbol">y&#771;</span>-only</span></strong>
+                        <span>Transported pseudo-data only</span>
+                      </th>
+                      <td>
+                        <span class="endpoint-chip">Utility</span>
+                        <span class="endpoint-chip">Alignment</span>
+                        <span class="endpoint-chip">Privacy accounting</span>
+                      </td>
                     </tr>
                     <tr>
-                      <th scope="row"><span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span></th>
-                      <td><span class="matrix-status active">Reported</span></td>
-                      <td><span class="matrix-status active">Reported</span></td>
-                      <td><span class="matrix-status active">Reported</span></td>
+                      <th scope="row">
+                        <strong><span class="math-term">Ref-train+<span class="math-symbol">y&#771;</span></span></strong>
+                        <span>Reference labels plus transported pseudo-data</span>
+                      </th>
+                      <td>
+                        <span class="endpoint-chip">Utility</span>
+                        <span class="endpoint-chip">Alignment</span>
+                        <span class="endpoint-chip">Privacy accounting</span>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
