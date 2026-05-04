@@ -18,11 +18,9 @@
 !assets/
 !requirements/
 !requirements/**/
-!tex/
 
 # Repository metadata and dependency manifests.
 !.gitignore
-!AGENTS.md
 !README.md
 !LICENSE
 !LICENSE.*
@@ -77,14 +75,13 @@
 !requirements/*.yaml
 !requirements/**/*.yaml
 
-# Existing paper source files only; generated tex artifacts remain ignored.
-!tex/cellot_lupus_kang_experiment.tex
-!tex/cellot_lupus_kang_metrics_results.tex
-!tex/cellot_lupus_kang_metrics_results_tuned.tex
-!tex/dp_gpu_rectified_flow_ref100_synhelps.tex
-
 # Configs: only publication configs are eligible for git.
 !configs/publication/*.yaml
 !configs/publication/**/*.yaml
 !configs/publication/*.yml
 !configs/publication/**/*.yml
+
+# Local agent instructions and LaTeX sources stay ignored.
+AGENTS.md
+*.tex
+tex/
