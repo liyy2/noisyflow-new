@@ -85,3 +85,4 @@
 AGENTS.md
 *.tex
 tex/
+*:Zone.Identifier
