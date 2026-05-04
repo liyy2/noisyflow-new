@@ -1,6 +1,6 @@
 # NoisyFlow: Privacy-Preserving Federated Domain Adaptation with Synthetic Data
 
-[Main schematic](assets/Noisyflow-Mar24th-schematics-updated.pdf) • [Additional schematic](assets/schematics.pdf) • [Documentation](docs/README.md) • [Citation](#citation)
+[Project website](https://liyy2.github.io/noisyflow-new/) • [Main schematic](assets/Noisyflow-Mar24th-schematics-updated.pdf) • [Additional schematic](assets/schematics.pdf) • [Documentation](docs/README.md) • [Citation](#citation)
 
 [![ISMB 2026 / Bioinformatics](https://img.shields.io/badge/ISMB%202026-Bioinformatics-1f6feb)](#citation)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-informational)](#requirements)
